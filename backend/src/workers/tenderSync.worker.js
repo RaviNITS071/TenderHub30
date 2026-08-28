@@ -6,44 +6,77 @@ import SyncJob from '../models/SyncJob.js';
 import Tender from '../models/Tender.js';
 
 const logger = pino();
-const connection = { host: new URL(env.REDIS_URL).hostname, port: new URL(env.REDIS_URL).port };
+const redisUrl = new URL(env.REDIS_URL);
+const connection = {
+  host: redisUrl.hostname,
+  port: Number(redisUrl.port) || 6379,
+  password: redisUrl.password || undefined,
+  tls: { rejectUnauthorized: false },
+  family: 4
+};
+
+/**
+ * Real-time saving logic for MongoDB with full metadata
+ */
+async function saveDetailedTendersToDatabase(pageData, adapter) {
+  if (!pageData || pageData.length === 0) return 0;
+
+  // Log updated to reflect real-time single saving
+  logger.info(`[Worker] Saving ${pageData.length} tender(s) in real-time to DB...`);
+  let newCount = 0;
+
+  const savePromises = pageData.map(async (raw) => {
+    try {
+      const normalized = adapter.normalize(raw);
+
+      const result = await Tender.findOneAndUpdate(
+        { 
+          sourcePortal: normalized.sourcePortal, 
+          sourceTenderId: normalized.sourceTenderId 
+        },
+        { 
+          $set: normalized 
+        },
+        { 
+          upsert: true, 
+          returnDocument: 'after', 
+          setDefaultsOnInsert: true, 
+          includeResultMetadata: true 
+        }
+      );
+
+      if (result.lastErrorObject && !result.lastErrorObject.updatedExisting) {
+        newCount++;
+      }
+    } catch (err) {
+      logger.error(`Error saving tender ${raw.sourceTenderId}: ${err.message}`);
+    }
+  });
+
+  await Promise.all(savePromises);
+  return newCount;
+}
 
 export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
   logger.info(`Processing Tender Sync Job: ${job.id}`);
-  
+
   const adapter = new JKTenderAdapter();
   const syncRecord = await SyncJob.create({ sourcePortal: adapter.portalName });
   let newFound = 0;
 
-  // --- CALLBACK TO SAVE DATA PAGE-BY-PAGE ---
+  // Callback is now triggered per-tender in real-time
   const savePageToDb = async (pageData) => {
-    logger.info(`[Worker] Saving ${pageData.length} tenders from current page to DB...`);
-    
-    for (const raw of pageData) {
-      const normalized = adapter.normalize(raw);
-
-      // Upsert logic with error handling for duplicates
-      const result = await Tender.updateOne(
-        { sourcePortal: normalized.sourcePortal, sourceTenderId: normalized.sourceTenderId },
-        { $set: normalized },
-        { upsert: true }
-      );
-
-      if (result.upsertedCount > 0) {
-        newFound++;
-      }
-    }
+    const addedCount = await saveDetailedTendersToDatabase(pageData, adapter);
+    newFound += addedCount;
   };
 
   try {
-    // Run the scraper passing the callback
-    // Mode is set to 'FULL' as per your requirement to fetch all 797 pages
     await adapter.fetchList(1, { syncMode: 'FULL' }, savePageToDb);
 
     syncRecord.status = 'completed';
     syncRecord.newTendersFound = newFound;
     await syncRecord.save();
-    
+
     logger.info(`Sync complete. Total new tenders added: ${newFound}`);
 
   } catch (error) {
@@ -53,4 +86,8 @@ export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
     await syncRecord.save();
     throw error;
   }
-}, { connection });
+}, { 
+  connection, 
+  lockDuration: 600000,   // 10 minutes lock duration to prevent job stalling during CAPTCHA
+  maxStalledCount: 3 
+});
