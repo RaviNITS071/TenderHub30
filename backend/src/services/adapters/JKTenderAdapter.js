@@ -2,9 +2,39 @@ import { TenderSourceAdapter } from './TenderSourceAdapter.js';
 import { chromium } from 'playwright';
 import { uploadPdfToR2 } from '../../utils/r2Storage.js';
 import fs from 'fs';
+import os from 'os'; // Added for OS detection
+import { exec } from 'child_process'; // Added for Ghostscript execution
+import util from 'util'; // Added to promisify exec
 import pino from 'pino';
 
 const logger = pino();
+const execPromise = util.promisify(exec); // Promisify exec for async/await usage
+
+/**
+ * Helper Function: Compresses a PDF file using Ghostscript to reduce storage footprint.
+ * Includes a 2-minute timeout to prevent the worker from hanging on corrupted PDFs.
+ * Targets approx. 50% size reduction using the /ebook preset (150 DPI).
+ * 
+ * @param {string} inputPath - The absolute file path of the original downloaded PDF.
+ * @param {string} outputPath - The absolute file path where the compressed PDF will be saved.
+ * @returns {Promise<boolean>} - Returns true if compression succeeds, false otherwise.
+ */
+async function compressPDF(inputPath, outputPath) {
+  try {
+    // Dynamically select the Ghostscript command based on the host OS
+    const gsCommand = os.platform() === 'win32' ? 'gswin64c' : 'gs';
+
+    // Build the Ghostscript execution command
+    const command = `${gsCommand} -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outputPath}" "${inputPath}"`;
+    
+    // Execute with a 120000ms (2 mins) timeout kill-switch
+    await execPromise(command, { timeout: 120000 }); 
+    return true;
+  } catch (err) {
+    logger.error(`[Compression] Ghostscript failed or timed out for ${inputPath}: ${err.message}`);
+    return false; // Safely fallback to uploading the original uncompressed file
+  }
+}
 
 export class JKTenderAdapter extends TenderSourceAdapter {
   constructor() {
@@ -133,12 +163,14 @@ export class JKTenderAdapter extends TenderSourceAdapter {
                   isMultiCurrencyAllowedForFee: getTableVal('Is Multi Currency Allowed For Fee'),
                   allowTwoStageBidding: getTableVal('Allow Two Stage Bidding'),
 
-                  tenderFee: parseNum(getTableVal('Tender Fee')),
+                  // ✅ FIX: Changed to 'Tender Fee in' to accurately grab the fee amount
+                  tenderFee: parseNum(getTableVal('Tender Fee in')),
                   feePayableTo: getTableVal('Fee Payable To'),
                   feePayableAt: getTableVal('Fee Payable At'),
                   tenderFeeExemptionAllowed: getTableVal('Tender Fee Exemption Allowed'),
 
-                  emdAmount: parseNum(getTableVal('EMD Amount')),
+                  // ✅ FIX: Changed to 'EMD Amount in' to accurately grab the EMD amount
+                  emdAmount: parseNum(getTableVal('EMD Amount in')),
                   emdExemptionAllowed: getTableVal('EMD Exemption Allowed'),
                   emdFeeType: getTableVal('EMD Fee Type'),
                   emdPercentage: getTableVal('EMD Percentage'),
@@ -216,6 +248,9 @@ export class JKTenderAdapter extends TenderSourceAdapter {
               if (item.isDocumentAvailable) {
                   const pdfCount = await itemPage.locator("a:has-text('.pdf')").count();
                   
+                  // ✅ DEDUPLICATION TRACKER: Keeps track of downloaded filenames for the current tender
+                  const processedFileNames = new Set();
+                  
                   for (let j = 0; j < pdfCount; j++) {
                     if (!itemPage.url().includes('FrontEndTenderDetails')) {
                         await itemPage.goto(item.detailsUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
@@ -224,7 +259,7 @@ export class JKTenderAdapter extends TenderSourceAdapter {
 
                     const pdfLink = itemPage.locator("a:has-text('.pdf')").nth(j);
                     
-                    // ✅ NATIVE POPUP INTERCEPT: Listen for a new tab (popup) OR an immediate download
+                    // ✅ NATIVE POPUP INTERCEPT
                     const popupPromise = itemPage.waitForEvent('popup', { timeout: 15000 }).catch(() => null);
                     const directDownloadPromise = itemPage.waitForEvent('download', { timeout: 15000 }).catch(() => null);
                     
@@ -245,7 +280,6 @@ export class JKTenderAdapter extends TenderSourceAdapter {
                         popupPage = raceResult.page;
                         await popupPage.waitForLoadState('domcontentloaded').catch(() => {});
 
-                        // Hook a listener ON THE POPUP ITSELF
                         const popupDownloadPromise = popupPage.waitForEvent('download', { timeout: 300000 }).catch(() => null);
 
                         const hasCaptcha = await popupPage.locator("input[name*='captcha'], img[src*='captcha']").isVisible().catch(() => false);
@@ -255,7 +289,6 @@ export class JKTenderAdapter extends TenderSourceAdapter {
                            logger.warn(`⚠️ CAPTCHA Intercepted for PDF ${j + 1}! Please solve it in the NEW POPUP TAB and hit Submit.`);
                         }
 
-                        // Script will wait here until you hit submit in the popup and it fires the download event
                         finalDownload = await popupDownloadPromise;
                     }
 
@@ -264,24 +297,64 @@ export class JKTenderAdapter extends TenderSourceAdapter {
                         const tempPath = await finalDownload.path().catch(() => null);
                         if (tempPath) {
                             const fileName = finalDownload.suggestedFilename();
-                            const r2Url = await uploadPdfToR2(tempPath, fileName);
+                            
+                            // ✅ THE FIX: Check if we already processed this exact file in this tender
+                            if (processedFileNames.has(fileName)) {
+                                logger.info(`[Optimizer] Duplicate link found for "${fileName}". Skipping to save DB & R2 space.`);
+                                // Delete the redundant temp file instantly
+                                if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                                // Close the popup if it was opened for this duplicate
+                                if (popupPage && !popupPage.isClosed()) {
+                                    await popupPage.close().catch(() => {});
+                                }
+                                continue; // Safely skip to the next loop iteration
+                            }
+                            
+                            // Register the filename so it doesn't get processed again
+                            processedFileNames.add(fileName);
+
+                            let pathToUpload = tempPath;
+                            
+                            const stats = fs.statSync(tempPath);
+                            const fileSizeMB = stats.size / (1024 * 1024);
+
+                            // Conditional Compression
+                            if (fileSizeMB > 5) {
+                                logger.info(`[Optimizer] File ${fileName} is ${fileSizeMB.toFixed(2)} MB. Initiating 50% compression...`);
+                                
+                                const compressedPath = `${tempPath}_compressed.pdf`;
+                                const isCompressed = await compressPDF(tempPath, compressedPath);
+                                
+                                if (isCompressed) {
+                                    const newSizeMB = fs.statSync(compressedPath).size / (1024 * 1024);
+                                    logger.info(`[Optimizer] Compression successful! Size reduced to ${newSizeMB.toFixed(2)} MB.`);
+                                    pathToUpload = compressedPath;
+                                }
+                            }
+
+                            const r2Url = await uploadPdfToR2(pathToUpload, fileName);
+                            
                             if (r2Url) {
+                                const finalSizeKb = Math.round(fs.statSync(pathToUpload).size / 1024);
+
                                 item.pdfUrls.push(r2Url);
                                 item.nitDocuments.push({
                                     documentName: fileName,
                                     description: "Tender Notice Document",
-                                    documentSizeKb: 0,
+                                    documentSizeKb: finalSizeKb, 
                                     fileUrl: r2Url
                                 });
+                                logger.info(`[Storage] Successfully secured document (${finalSizeKb} KB) to R2 storage.`);
                             }
+                            
                             if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+                            if (pathToUpload !== tempPath && fs.existsSync(pathToUpload)) fs.unlinkSync(pathToUpload);
                         }
                       } catch (err) {
                         logger.error(`Error processing PDF download: ${err.message}`);
                       }
                     }
 
-                    // Clean up the popup tab so it doesn't clutter the browser
                     if (popupPage && !popupPage.isClosed()) {
                         await popupPage.close().catch(() => {});
                     }
@@ -333,7 +406,6 @@ export class JKTenderAdapter extends TenderSourceAdapter {
       throw error;
     }
   }
-// Normalize method remains exactly the same...
 
   normalize(rawTenderData) {
     const parseDate = (dateStr) => {
