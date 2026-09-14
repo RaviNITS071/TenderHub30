@@ -72,6 +72,13 @@ app.use('/api/v1/bids', bidRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/api/v1/documents', documentRoutes);
 
+// Fallback aliases (ensures frontend works whether VITE_API_URL includes /api/v1 or just the domain)
+app.use('/auth', authRoutes);
+app.use('/tenders', tenderRoutes);
+app.use('/bids', bidRoutes);
+app.use('/organizations', organizationRoutes);
+app.use('/documents', documentRoutes);
+
 // 4. 404 Handler
 app.use((req, res, next) => {
   res.status(404).json({ error: 'Route not found' });
