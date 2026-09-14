@@ -1,104 +1,136 @@
-import { MapPin, Heart, Download, Megaphone } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-
 /**
- * Horizontal TenderCard Component
- * Redesigned to match enterprise list-based UI patterns.
+ * @file src/components/shared/TenderCard.jsx
+ * @description Production horizontal tender card. Displays authority hierarchy, contract type,
+ * estimated value, closing countdown, and bookmarking functionality mapped directly to schema keys.
  */
-export function TenderCard({ title, authority, location, closingDate, tenderValue, type, tenderUrl }) {
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Clock, MapPin, Heart, ExternalLink, FileSpreadsheet } from 'lucide-react';
+
+import { formatCurrencyINR, formatDateDisplay } from '@/utils/formatters';
+import { useBookmarkStore } from '@/store/useBookmarkStore';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+
+export function TenderCard({ tender }) {
+  const { toggleBookmark, isBookmarked } = useBookmarkStore();
+  const navigate = useNavigate();
   
-  // Format the date to match the "DD/MM/YYYY" format from the reference image
-  const formattedDate = new Date(closingDate).toLocaleDateString('en-IN', {
-    day: '2-digit', month: '2-digit', year: 'numeric'
-  });
+  const tenderId = tender._id || tender.sourceTenderId;
+  const bookmarked = isBookmarked(tenderId);
+  
+  // Extract department from organisationChain hierarchy (e.g. "AGRICULTURE||Dept...")
+  const orgParts = (tender.organisationChain || '').split('||').map((p) => p.trim());
+  const issuingDept = orgParts[0] || tender.department || 'Issuing Authority';
+  const subDept = orgParts.length > 1 ? orgParts[orgParts.length - 1] : '';
+
+  // Calculate days remaining to bid submission deadline
+  const calculateDaysLeft = (closingDateStr) => {
+    if (!closingDateStr) return null;
+    const diff = new Date(closingDateStr).getTime() - new Date().getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+  const daysLeft = calculateDaysLeft(tender.bidSubmissionEndDate?.$date || tender.closingDate);
 
   return (
-    <Card className="flex flex-col p-5 bg-background border-border hover:shadow-md transition-shadow duration-300 w-full mb-4">
+    <article className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 hover:border-dalBlue/40 dark:hover:border-blue-500/50 rounded-xl p-5 shadow-subtle hover:shadow-card transition-all duration-200 group">
       
-      {/* --- Top Row: Authority & Highlight Tags --- */}
-      <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <h3 className="font-bold text-base text-foreground tracking-tight">
-          {authority || "Unknown Authority"}
-        </h3>
-        
-        {/* Yellow styling for Type tags */}
-        <Badge variant="outline" className="border-yellow-400 text-yellow-700 bg-yellow-50 rounded px-2 py-0.5 text-xs font-normal">
-          {type || "Works"}
-        </Badge>
-        <Badge variant="outline" className="border-yellow-400 text-yellow-700 bg-yellow-50 rounded px-2 py-0.5 text-xs font-normal flex items-center gap-1">
-          <Megaphone className="w-3 h-3" /> Corrigendum
-        </Badge>
-      </div>
-
-      {/* --- Middle Row: Description & Stat Boxes --- */}
-      <div className="flex flex-col md:flex-row justify-between gap-6 mb-4">
-        
-        {/* Tender Title / Description */}
-        <p className="text-muted-foreground text-sm flex-1 leading-relaxed line-clamp-3 md:line-clamp-2">
-          {title || "Untitled Tender Document"}
-        </p>
-
-        {/* Amount & Date Boxes (Right Aligned) */}
-        <div className="flex items-center gap-3 shrink-0">
-          
-          {/* Green Amount Box */}
-          <div className="border border-green-200 bg-green-50/40 rounded-md px-3 py-1.5 flex flex-col items-center justify-center min-w-[100px]">
-            <span className="text-[11px] text-green-600 font-medium">Amount</span>
-            <span className="text-sm font-semibold text-foreground">
-              {tenderValue ? `₹${tenderValue}` : "N/A"}
+      {/* Top Meta Bar */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="flex-1 min-w-[280px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Badge variant="outline" className="font-mono text-[10px] uppercase dark:text-slate-300 dark:border-slate-600">
+              {tender.sourceTenderId || tender.tenderReferenceNumber || 'REF-ACTIVE'}
+            </Badge>
+            <span className="text-xs font-bold text-dalBlue dark:text-blue-400 truncate max-w-[250px]" title={issuingDept}>
+              {issuingDept}
             </span>
           </div>
 
-          {/* Red/Pink Closing Date Box */}
-          <div className="border border-rose-200 bg-rose-50/40 rounded-md px-3 py-1.5 flex flex-col items-center justify-center min-w-[100px]">
-            <span className="text-[11px] text-rose-500 font-medium">Closing date</span>
-            <span className="text-sm font-semibold text-foreground">{formattedDate}</span>
-          </div>
+          <h3 className="text-base font-bold text-charcoal dark:text-slate-200 group-hover:text-dalBlue dark:group-hover:text-blue-400 transition-colors leading-snug line-clamp-2">
+            {tender.title?.replace(/[\[\]]/g, '') || 'Tender Notice'}
+          </h3>
+          {subDept && <p className="text-xs text-charcoal/50 dark:text-slate-400 mt-1 truncate">{subDept}</p>}
+        </div>
 
+        {/* Favorite / Bookmark Toggle */}
+        <button
+          type="button"
+          onClick={() => toggleBookmark(tender)}
+          className={`p-2.5 rounded-lg border transition-all ${
+            bookmarked
+              ? 'bg-chinarRed/10 border-chinarRed text-chinarRed dark:bg-red-500/10 dark:border-red-500 dark:text-red-400'
+              : 'border-border text-charcoal/40 hover:text-chinarRed hover:border-chinarRed/30 bg-paper dark:bg-slate-900 dark:border-slate-700 dark:text-slate-500 dark:hover:text-red-400 dark:hover:border-red-500/50'
+          }`}
+          title={bookmarked ? 'Remove from Saved' : 'Save this Tender'}
+        >
+          <Heart className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
+        </button>
+      </div>
+
+      {/* Middle Financials & Timeline Row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 my-2 border-y border-border/60 dark:border-slate-700 bg-paper/40 dark:bg-slate-900/50 rounded-lg px-4">
+        <div>
+          <span className="block text-[11px] text-charcoal/60 dark:text-slate-400 font-semibold uppercase tracking-wide">Estimated Value</span>
+          <span className="text-sm font-extrabold text-dalBlue dark:text-blue-400">
+            {formatCurrencyINR(tender.estimatedValue)}
+          </span>
+        </div>
+        <div>
+          <span className="block text-[11px] text-charcoal/60 dark:text-slate-400 font-semibold uppercase tracking-wide">EMD Amount</span>
+          <span className="text-sm font-bold text-charcoal dark:text-slate-200">
+            {formatCurrencyINR(tender.emdAmount)}
+            {tender.emdExemptionAllowed === 'Yes' && (
+              <span className="ml-1 text-[10px] text-successGreen font-extrabold" title="MSME Exemption Allowed">(Exempt)</span>
+            )}
+          </span>
+        </div>
+        <div>
+          <span className="block text-[11px] text-charcoal/60 dark:text-slate-400 font-semibold uppercase tracking-wide">Closing Date</span>
+          <span className="text-sm font-bold text-charcoal dark:text-slate-200">
+            {formatDateDisplay(tender.bidSubmissionEndDate?.$date || tender.closingDate)}
+          </span>
+        </div>
+        <div>
+          <span className="block text-[11px] text-charcoal/60 dark:text-slate-400 font-semibold uppercase tracking-wide">Timeline Alert</span>
+          {daysLeft !== null && daysLeft >= 0 ? (
+            <span className={`inline-flex items-center gap-1 text-sm font-extrabold ${
+                daysLeft <= 3 ? 'text-chinarRed dark:text-red-400' : daysLeft <= 7 ? 'text-warningGold' : 'text-successGreen'
+              }`}>
+              <Clock className="w-3.5 h-3.5" /> {daysLeft === 0 ? 'Closes Today' : `${daysLeft} days left`}
+            </span>
+          ) : (
+            <span className="text-sm text-charcoal/40 dark:text-slate-500 font-bold">Closed</span>
+          )}
         </div>
       </div>
 
-      {/* --- Bottom Row: Location, Categories & Action Buttons --- */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-1">
-        
-        {/* Tags Section */}
+      {/* Bottom Attributes and Action Buttons */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Location Badge */}
-          <Badge variant="outline" className="rounded-full font-normal text-muted-foreground border-border/80 flex items-center gap-1 px-3 py-1">
-            <MapPin className="w-3.5 h-3.5" /> {location || "India"}
+          <Badge variant="secondary" className="gap-1 px-3 bg-white dark:bg-slate-800 dark:border-slate-600 dark:text-slate-300">
+            <MapPin className="w-3 h-3 text-chinarRed dark:text-red-400" />
+            <span className="truncate max-w-[150px]">{tender.location || 'Jammu & Kashmir'}</span>
           </Badge>
-          
-          {/* Extra Category Tags (You can map these dynamically from backend data later) */}
-          <Badge variant="outline" className="rounded-full font-normal text-purple-700 border-purple-200 bg-purple-50/50 px-3 py-1">
-            Drilling Work
+          <Badge variant="default" className="bg-dalBlue/10 text-dalBlue dark:bg-blue-500/10 dark:text-blue-400 border-none px-3">
+            {tender.productCategory || 'Works'}
           </Badge>
-          <Badge variant="outline" className="rounded-full font-normal text-emerald-700 border-emerald-200 bg-emerald-50/50 px-3 py-1">
-            Construction
-          </Badge>
-          <Badge variant="outline" className="rounded-full font-normal text-orange-700 border-orange-200 bg-orange-50/50 px-3 py-1">
-            GEM
-          </Badge>
+          {tender.coversInfo?.some((c) => c.documentType === '.xls') && (
+            <Badge variant="success" className="gap-1">
+              <FileSpreadsheet className="w-3 h-3" /> BOQ
+            </Badge>
+          )}
         </div>
 
-        {/* Action Buttons Section */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          {/* Ghost Follow Button */}
-          <Button variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium gap-2 hidden sm:flex">
-            Follow <Heart className="w-4 h-4" />
-          </Button>
-          
-          {/* Primary Solid Download Button */}
-          <Button 
-            className="bg-blue-600 hover:bg-blue-700 text-white w-full md:w-auto gap-2 shadow-sm"
-            onClick={() => window.open(tenderUrl, "_blank")}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate(`/tenders/${tender._id || tender.sourceTenderId}`)}
+            className="gap-1.5 px-4 py-2 text-xs shadow-sm bg-dalBlue hover:bg-dalBlue-800 text-white dark:bg-blue-600 dark:hover:bg-blue-700 transition-all"
           >
-            Download All <Download className="w-4 h-4" />
+            View Full Details <ExternalLink className="w-3 h-3" />
           </Button>
         </div>
-
       </div>
-    </Card>
+    </article>
   );
 }

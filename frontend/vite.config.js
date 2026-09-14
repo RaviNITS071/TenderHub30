@@ -1,15 +1,12 @@
-import path from "path"
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "./src"),
-    },
-  },
-  build: {
-    cssMinify: 'esbuild', // Forces esbuild to handle modern CSS functions like --spacing() without crashing
-  },
+      '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  }
 })

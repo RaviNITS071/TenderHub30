@@ -21,7 +21,7 @@ const logger = pino({
 // 1. Security & Parsers
 app.use(helmet());
 app.use(cors({
-  origin: env.CORS_ORIGIN,
+  origin: env.CORS_ORIGIN || 'http://localhost:5173'  ,
   credentials: true, // Required for httpOnly cookies
 }));
 app.use(express.json());
