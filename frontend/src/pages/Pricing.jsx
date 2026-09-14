@@ -1,9 +1,8 @@
 /**
  * @file src/pages/Pricing.jsx
- * @description Clear tier structure highlighting features for different contractor scales.
+ * @description Transparent subscription tiers for regional contractors and engineering consortia.
  */
-import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, Shield, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function Pricing() {
@@ -12,79 +11,138 @@ export default function Pricing() {
       name: 'Contractor Free',
       price: '₹0',
       period: 'forever',
-      desc: 'Ideal for independent contractors searching manually.',
-      perks: ['Search active tenders', 'Save up to 10 favorite tenders', 'Direct official links', 'Basic filtering'],
+      desc: 'Essential public works discovery tools for independent regional contractors.',
+      perks: [
+        'Search active tenders across all 20 J&K districts',
+        'Save up to 10 bookmarked tender notices',
+        'Direct link helper to official portal searches',
+        'Department & district keyword filtering',
+        'Daily directory synchronization'
+      ],
       cta: 'Current Plan',
       popular: false,
     },
     {
-      name: 'Pro Intelligence',
+      name: 'Contractor Pro',
       price: '₹2,499',
       period: 'per month',
-      desc: 'Engineered for active bidders who cannot afford to miss caveats.',
-      perks: ['Unlimited AI Document Parsing', 'Corrigendum WhatsApp Alerts', 'Automated Turnover Scoring', 'Export Pipeline to CSV'],
+      desc: 'For active bidding firms requiring instant NIT access, corrigenda alerts, and site locations.',
+      perks: [
+        'Everything in Free tier',
+        'Fast Cloudflare R2 NIT PDF document views',
+        'Daily deadline notifications & updates',
+        'Specific project site & location mapping',
+        'Export tender pipelines to Excel / CSV',
+        'Priority technical support desk'
+      ],
       cta: 'Upgrade to Pro',
       popular: true,
     },
     {
-      name: 'Enterprise API',
+      name: 'Enterprise Consortium',
       price: '₹7,999',
       period: 'per month',
-      desc: 'Full API access and multi-user seats for infrastructure consortia.',
-      perks: ['All Pro features', 'Custom Webhooks for ERP', 'Multi-user Access (10 seats)', 'Priority Regional Support'],
-      cta: 'Contact Sales',
+      desc: 'Full API access and multi-seat workspace for large infrastructure contractors.',
+      perks: [
+        'Everything in Contractor Pro',
+        'REST API & Webhook data feeds',
+        'Multi-user seats (up to 10 engineers)',
+        'Custom department tracking requests',
+        'Dedicated regional account liaison',
+        'SLA guaranteed data synchronization'
+      ],
+      cta: 'Contact Enterprise Desk',
       popular: false,
     },
   ];
 
   return (
-    <div className="min-h-screen bg-paper py-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-dalBlue tracking-tight">Invest in Intelligence.</h1>
-          <p className="text-base text-charcoal/70 font-medium">
-            Winning a single additional contract pays for TenderHub for years. Choose your bidding volume.
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-16 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Header Title */}
+        <div className="text-center max-w-2xl mx-auto mb-14 space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700">
+            <Shield className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" />
+            <span>Transparent Subscription Plans</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-slate-900 dark:text-white tracking-tight">
+            Plans for Independent Contractors &amp; Firms
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+            Choose the subscription plan that aligns with your public sector bidding requirements.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        {/* Pricing Cards Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
           {plans.map((plan, i) => (
-            <div key={i} className={`bg-white rounded-2xl p-8 border flex flex-col justify-between relative transition-all ${
-                plan.popular ? 'border-chinarRed shadow-xl scale-100 lg:scale-105 z-10' : 'border-border shadow-subtle'
-              }`}>
+            <div 
+              key={i} 
+              className={`bg-white dark:bg-slate-800 rounded-xl p-7 border flex flex-col justify-between relative shadow-xs transition-colors ${
+                plan.popular 
+                  ? 'border-dalBlue dark:border-blue-500 ring-1 ring-dalBlue/10 dark:ring-blue-500/20' 
+                  : 'border-slate-200 dark:border-slate-700'
+              }`}
+            >
               {plan.popular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-chinarRed text-white text-[11px] font-bold uppercase tracking-wider px-4 py-1 rounded-full shadow-md whitespace-nowrap">
-                  Most Popular
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-dalBlue text-white text-[11px] font-bold uppercase tracking-wider px-3 py-0.5 rounded-full shadow-xs">
+                  Recommended for Contractors
                 </div>
               )}
 
               <div>
-                <h3 className="text-xl font-bold text-dalBlue">{plan.name}</h3>
-                <p className="text-sm text-charcoal/60 mt-2 font-medium h-12">{plan.desc}</p>
-                <div className="my-6">
-                  <span className="text-4xl font-extrabold text-charcoal">{plan.price}</span>
-                  <span className="text-sm font-bold text-charcoal/50 ml-1.5">/ {plan.period}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-lg font-display font-bold text-slate-900 dark:text-white">
+                    {plan.name}
+                  </h3>
                 </div>
-                <div className="space-y-3.5 pt-6 border-t border-border">
-                  <span className="block text-xs font-bold uppercase text-charcoal/40 tracking-wider">Includes:</span>
-                  {plan.perks.map((perk, idx) => (
-                    <div key={idx} className="flex items-start gap-3 text-sm text-charcoal font-medium">
-                      <Check className="w-4 h-4 text-successGreen shrink-0 mt-0.5" /> <span>{perk}</span>
-                    </div>
-                  ))}
+
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed min-h-[36px]">
+                  {plan.desc}
+                </p>
+
+                <div className="my-6 pb-5 border-b border-slate-100 dark:border-slate-700/60">
+                  <span className="font-mono text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">
+                    {plan.price}
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 ml-1.5 font-medium">
+                    / {plan.period}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5">
+                  <span className="block text-[11px] font-bold uppercase text-slate-400 dark:text-slate-400 tracking-wider">
+                    Plan Highlights
+                  </span>
+                  <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                    {plan.perks.map((perk, j) => (
+                      <li key={j} className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{perk}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-              <div className="pt-8">
+
+              <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-700/60">
                 <Button 
-                  variant={plan.popular ? 'destructive' : 'outline'} 
-                  className="w-full py-6 text-sm"
+                  variant={plan.popular ? 'default' : 'outline'}
+                  className={`w-full text-xs font-bold py-2.5 rounded-lg ${
+                    plan.popular
+                      ? 'bg-dalBlue hover:bg-dalBlue-700 text-white'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
                 >
-                  {plan.cta}
+                  <span>{plan.cta}</span>
+                  <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                 </Button>
               </div>
             </div>
           ))}
         </div>
+
       </div>
     </div>
   );

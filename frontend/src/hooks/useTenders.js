@@ -13,7 +13,7 @@ export const useTenders = (filters = {}) => {
     queryFn: async () => {
       // Clean up filters to remove empty strings or undefined values
       const cleanFilters = Object.fromEntries(
-        Object.entries(filters).filter(([_, v]) => v != null && v !== '')
+        Object.entries(filters).filter(([, v]) => v != null && v !== '')
       );
       
       const response = await api.get('/tenders', { params: cleanFilters });
@@ -36,6 +36,17 @@ export const useTender = (id) => {
       return response.data;
     },
     enabled: !!id, // Only run the query if an ID is provided
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
+export const useTenderStats = () => {
+  return useQuery({
+    queryKey: ['tenderStats'],
+    queryFn: async () => {
+      const response = await api.get('/tenders/stats');
+      return response.data;
+    },
     staleTime: 1000 * 60 * 5,
   });
 };

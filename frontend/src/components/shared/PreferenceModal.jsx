@@ -1,8 +1,8 @@
 /**
  * @file src/components/shared/PreferenceModal.jsx
- * @description Initial contractor intake modal utilizing the new custom Dialog primitives.
+ * @description Initial contractor intake modal utilizing custom Dialog primitives with dark mode styling.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { usePreferenceStore } from '@/store/usePreferenceStore';
 import { Sliders, ArrowRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/Modal';
@@ -40,30 +40,32 @@ export function PreferenceModal() {
 
   return (
     <Dialog open={!preferences.isConfigured}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader className="mb-6 flex flex-row items-center gap-4 text-left">
-          <div className="w-12 h-12 rounded-xl bg-dalBlue/10 text-dalBlue flex items-center justify-center shrink-0">
+          <div className="w-12 h-12 rounded-2xl bg-dalBlue/10 dark:bg-blue-500/20 text-dalBlue dark:text-blue-400 flex items-center justify-center shrink-0">
             <Sliders className="w-6 h-6" />
           </div>
           <div>
-            <DialogTitle>Tailor Your Tender Feed</DialogTitle>
-            <DialogDescription>Configure your business scope to prioritize relevant bids.</DialogDescription>
+            <DialogTitle>Tailor Your Tender Radar</DialogTitle>
+            <DialogDescription>Configure your business scope to prioritize high-value contract feeds.</DialogDescription>
           </div>
         </DialogHeader>
 
         <form onSubmit={handleSave} className="space-y-5">
           <div>
-            <label className="block text-xs font-bold text-charcoal mb-2 uppercase tracking-wide">Work Domains</label>
+            <label className="block text-xs font-bold uppercase tracking-wide text-charcoal/70 dark:text-slate-300 mb-2">
+              Work Domains
+            </label>
             <div className="flex flex-wrap gap-2">
               {sectorOptions.map((sec) => (
                 <button
                   type="button"
                   key={sec}
                   onClick={() => toggleSector(sec)}
-                  className={`text-xs px-3 py-1.5 rounded-lg border font-bold transition-all ${
+                  className={`text-xs px-3 py-1.5 rounded-xl border font-bold transition-all ${
                     sectors.includes(sec)
-                      ? 'bg-dalBlue text-white border-dalBlue'
-                      : 'bg-paper text-charcoal/70 border-border hover:border-dalBlue/40'
+                      ? 'bg-dalBlue text-white border-dalBlue shadow-xs'
+                      : 'bg-paper dark:bg-slate-900 text-charcoal/70 dark:text-slate-300 border-border dark:border-slate-800 hover:border-dalBlue/40'
                   }`}
                 >
                   {sec}
@@ -73,36 +75,40 @@ export function PreferenceModal() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-charcoal mb-1 uppercase tracking-wide">Preferred District</label>
+            <label className="block text-xs font-bold uppercase tracking-wide text-charcoal/70 dark:text-slate-300 mb-1">
+              Preferred District / Base
+            </label>
             <Input 
               value={location} onChange={(e) => setLocation(e.target.value)} 
-              placeholder="e.g. Srinagar, Jammu" 
+              placeholder="e.g. Srinagar, Baramulla, Jammu" 
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-charcoal mb-1 uppercase tracking-wide">Minimum Contract Value (INR)</label>
+            <label className="block text-xs font-bold uppercase tracking-wide text-charcoal/70 dark:text-slate-300 mb-1">
+              Minimum Contract Threshold (INR)
+            </label>
             <Input 
               type="number" value={minVal} onChange={(e) => setMinVal(e.target.value)} 
               placeholder="e.g. 500000" 
             />
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2.5 pt-2">
             <input
               type="checkbox" id="emdOpt" checked={preferEmd} onChange={(e) => setPreferEmd(e.target.checked)}
-              className="w-4 h-4 rounded border-border text-dalBlue focus:ring-dalBlue"
+              className="w-4 h-4 rounded border-border dark:border-slate-700 text-dalBlue focus:ring-dalBlue accent-dalBlue cursor-pointer"
             />
-            <label htmlFor="emdOpt" className="text-xs text-charcoal font-bold cursor-pointer">
-              Prioritize MSME / EMD Exempt tenders
+            <label htmlFor="emdOpt" className="text-xs text-charcoal dark:text-slate-200 font-bold cursor-pointer">
+              Prioritize MSME / EMD Exempt Tenders
             </label>
           </div>
 
-          <div className="pt-4 border-t border-border flex justify-end gap-3 mt-6">
+          <div className="pt-4 border-t border-border dark:border-slate-800 flex justify-end gap-3 mt-6">
             <Button variant="ghost" onClick={() => updatePreferences({ isConfigured: true })}>
-              Skip
+              Skip for Now
             </Button>
-            <Button type="submit" variant="default" className="bg-chinarRed hover:bg-chinarRed-800 gap-2">
+            <Button type="submit" variant="default" className="bg-chinarRed hover:bg-chinarRed-700 text-white gap-2">
               Apply Filters <ArrowRight className="w-4 h-4" />
             </Button>
           </div>

@@ -12,6 +12,7 @@ import tenderRoutes from './routes/tender.routes.js';
 import bidRoutes from './routes/bid.routes.js';        
 import organizationRoutes from './routes/organization.routes.js';
 import documentRoutes from './routes/document.routes.js';
+import { globalErrorHandler } from './middleware/errorHandler.middleware.js';
 
 const app = express();
 const logger = pino({
@@ -19,9 +20,33 @@ const logger = pino({
 });
 
 // 1. Security & Parsers
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
+  env.CORS_ORIGIN
+].filter(Boolean);
+
 app.use(cors({
-  origin: env.CORS_ORIGIN || 'http://localhost:5173'  ,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (
+      allowedOrigins.includes(origin) ||
+      /^http:\/\/localhost:\d+$/.test(origin) ||
+      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
   credentials: true, // Required for httpOnly cookies
 }));
 app.use(express.json());
@@ -47,12 +72,6 @@ app.use((req, res, next) => {
 });
 
 // 5. Global Error Handler (must be last)
-app.use((err, req, res, next) => {
-  logger.error(err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-    ...(env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
-});
+app.use(globalErrorHandler);
 
 export default app;

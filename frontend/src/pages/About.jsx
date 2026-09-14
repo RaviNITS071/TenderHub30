@@ -1,57 +1,93 @@
 /**
  * @file src/pages/About.jsx
- * @description Educational page detailing the platform's mission and engineering standards.
+ * @description Information regarding platform architecture, data synchronization with jktenders.gov.in, and engineering standards.
  */
-import React from 'react';
 import { Link } from 'react-router-dom';
-import { Database, Cpu, ArrowRight } from 'lucide-react';
+import { Database, ArrowRight, Landmark, FileText, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 export default function About() {
   return (
-    <div className="min-h-screen bg-paper py-16 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-10">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-16 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
+      <div className="max-w-4xl mx-auto space-y-8">
         
-        <div className="bg-white border border-border rounded-2xl p-8 sm:p-12 shadow-subtle space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded bg-dalBlue/10 text-dalBlue text-xs font-bold uppercase tracking-wider">
-            Our Mission
+        {/* Mission Statement Card */}
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 sm:p-10 shadow-xs space-y-4">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-600">
+            <Landmark className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" />
+            <span>Platform Background</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-dalBlue tracking-tight">
-            Democratizing Public Procurement
+
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-slate-900 dark:text-white tracking-tight">
+            Supporting Public Procurement Transparency in Jammu &amp; Kashmir
           </h1>
-          <p className="text-base text-charcoal/80 leading-relaxed font-medium">
-            Public sector tenders represent immense infrastructural development, yet discovering them remains bogged down by outdated portal interfaces and unindexed scanned PDFs.
+
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+            Public works contracts published across Jammu and Kashmir represent thousands of critical infrastructure, rural water supply, road macadamization, and power grid projects. Historically, navigating these tenders required traversing fragmented portals with short-lived session timeouts and unindexed attachments.
           </p>
-          <p className="text-base text-charcoal/80 leading-relaxed font-medium">
-            TenderHub was established to solve this. By uniting Playwright-driven government scrapers with deep OCR and OpenAI analysis, we transform messy NIT announcements into structured intelligence.
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+            TenderHub was established to provide contractors, civil engineers, and suppliers with a reliable, structured repository of official public tenders. We systematically index gazettes, verify document links, and provide clear work site clarity so local bidders can make informed decisions.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div className="bg-white border border-border rounded-xl p-8 shadow-subtle">
-            <Database className="w-8 h-8 text-dalBlue mb-4" />
-            <h3 className="text-lg font-bold text-dalBlue mb-2">Complete Verification</h3>
-            <p className="text-sm text-charcoal/70 leading-relaxed font-medium">
-              We never fabricate summaries. Every tender links directly back to its source ID and official portal.
+        {/* 3 Core Operating Standards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs space-y-2">
+            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-dalBlue dark:text-blue-400 flex items-center justify-center mb-3">
+              <Database className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-display font-bold text-slate-900 dark:text-white">
+              Official Data Integrity
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Every listing maintains a direct reference back to the official Tender Reference Number and issuing government division.
             </p>
           </div>
-          <div className="bg-white border border-border rounded-xl p-8 shadow-subtle">
-            <Cpu className="w-8 h-8 text-chinarRed mb-4" />
-            <h3 className="text-lg font-bold text-dalBlue mb-2">Deterministic Scoring</h3>
-            <p className="text-sm text-charcoal/70 leading-relaxed font-medium">
-              We match contractors using mathematical formulas based on project scale and past experience requirements.
+
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs space-y-2">
+            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-chinarRed flex items-center justify-center mb-3">
+              <FileText className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-display font-bold text-slate-900 dark:text-white">
+              Document Archiving
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Official NIT documents and tender notices are cached to edge cloud vaults so contractors can inspect specifications without session timeouts.
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs space-y-2">
+            <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 text-emerald-600 flex items-center justify-center mb-3">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-display font-bold text-slate-900 dark:text-white">
+              Work Site Proximity
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Clear city, district, and project location details help contractors assess geographical logistics and site access requirements.
             </p>
           </div>
         </div>
 
-        <div className="bg-dalBlue text-white rounded-2xl p-10 text-center shadow-md">
-          <h2 className="text-2xl font-bold tracking-tight mb-4">Streamline your bidding operations today.</h2>
-          <Link to="/tenders">
-            <Button variant="destructive" size="lg" className="gap-2 text-sm mt-2">
-              Browse Open Tenders <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
+        {/* CTA Card */}
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-8 text-center shadow-xs">
+          <div className="max-w-xl mx-auto space-y-3">
+            <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white">
+              Explore Active Tender Notices
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+              Browse current open notices published by the Department of Public Works (R&amp;B), Jal Shakti, and regional development authorities.
+            </p>
+            <div className="pt-2">
+              <Link to="/tenders">
+                <Button className="gap-2 text-xs font-bold py-2.5 px-5 bg-dalBlue hover:bg-dalBlue-700 text-white rounded-lg">
+                  Browse Active Tenders <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
+
       </div>
     </div>
   );

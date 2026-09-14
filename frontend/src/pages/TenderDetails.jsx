@@ -1,43 +1,32 @@
 /**
  * @file src/pages/TenderDetails.jsx
  * @description Comprehensive view of a single tender, directly mirroring the J&K eProcurement 
- * portal data structure while maintaining the Dal Blue + Chinar Accent design system.
+ * portal data structure with clean typography, high-contrast light mode, and official portal helper.
  */
-import React from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, Calendar, FileText, IndianRupee, Heart, ExternalLink, AlertCircle, Download, Layers, CreditCard } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Building2, Calendar, FileText, IndianRupee, Heart, ExternalLink, AlertCircle, Download, Layers, CreditCard, MapPin, Map, Compass, Copy, Check, X, Info, FileClock } from 'lucide-react';
 
 import { useTender } from '@/hooks/useTenders';
 import { useBookmarkStore } from '@/store/useBookmarkStore';
-import { formatCurrencyINR, formatDateDisplay } from '@/utils/formatters';
+import { formatCurrencyINR, formatDateDisplay, extractDetailedWorkLocation } from '@/utils/formatters';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-
-// Animation variants
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } };
-const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/Modal';
 
 // Helper to handle MongoDB's {"$date": "..."} format, raw strings, and "NA" fallbacks
 const parseDate = (dateField) => {
-  // 1. Immediately catch missing data or literal "NA" strings from the scraper
   if (!dateField || dateField === 'NA' || dateField === 'N/A') return null;
-  
-  // 2. Extract the date string if it is wrapped in MongoDB's $date object
   const dateStr = typeof dateField === 'object' && dateField.$date ? dateField.$date : dateField;
-  
-  // 3. Safety check: Ensure the extracted string can actually be parsed into a real date
   const parsed = new Date(dateStr);
   if (isNaN(parsed.getTime())) return null; 
-  
   return dateStr;
 };
 
 // Reusable Data Row for standardized tables
 const DataRow = ({ label, value }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 py-2.5 border-b border-border/50 dark:border-slate-700/50 last:border-0 gap-1 sm:gap-4">
-    <span className="text-xs font-bold text-charcoal/60 dark:text-slate-400">{label}</span>
-    <span className="text-sm font-semibold text-charcoal dark:text-slate-200 break-words">
+  <div className="grid grid-cols-1 sm:grid-cols-2 py-2 border-b border-slate-100 dark:border-slate-700/60 last:border-0 gap-1 sm:gap-3 text-xs">
+    <span className="font-semibold text-slate-500 dark:text-slate-400">{label}</span>
+    <span className="font-medium text-slate-800 dark:text-slate-200 break-words">
       {value === 'NA' || !value ? 'N/A' : value}
     </span>
   </div>
@@ -48,319 +37,534 @@ export default function TenderDetails() {
   const navigate = useNavigate();
   const { data: tender, isLoading, isError } = useTender(id);
   const { toggleBookmark, isBookmarked } = useBookmarkStore();
+  const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
+
+  const copyToClipboard = (text, fieldName) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(null), 2500);
+  };
+
+  const handleOpenPortalModal = () => {
+    if (tender?.sourceTenderId) {
+      copyToClipboard(tender.sourceTenderId, 'tenderId');
+    }
+    setIsPortalModalOpen(true);
+  };
 
   if (isLoading) return (
     <div className="min-h-screen bg-paper dark:bg-slate-900 flex items-center justify-center">
-      <div className="w-12 h-12 rounded-full border-4 border-dalBlue border-t-transparent animate-spin" />
+      <div className="w-8 h-8 rounded-full border-3 border-dalBlue border-t-transparent animate-spin" />
     </div>
   );
 
   if (isError || !tender) return (
     <div className="min-h-screen bg-paper dark:bg-slate-900 flex flex-col items-center justify-center text-center p-4">
-      <AlertCircle className="w-16 h-16 text-chinarRed mb-4" />
-      <h2 className="text-2xl font-bold text-dalBlue dark:text-blue-400">Tender Not Found</h2>
-      <Button onClick={() => navigate('/tenders')} className="mt-4">Back to Directory</Button>
+      <AlertCircle className="w-12 h-12 text-chinarRed mb-3" />
+      <h2 className="text-xl font-bold font-display text-slate-900 dark:text-white">Tender Not Found</h2>
+      <Button onClick={() => navigate('/tenders')} className="mt-3 text-xs">Back to Directory</Button>
     </div>
   );
 
   const bookmarked = isBookmarked(tender._id || tender.sourceTenderId);
   const orgParts = (tender.organisationChain || '').split('||').map(p => p.trim());
   const primaryOrg = orgParts[0] || tender.department;
+  const workLoc = extractDetailedWorkLocation(tender);
 
   return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-300">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-6xl mx-auto space-y-6">
         
         {/* Navigation & Header */}
-        <motion.div initial="hidden" animate="visible" variants={fadeUp}>
+        <div>
           <button 
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-xs font-bold text-charcoal/60 dark:text-slate-400 hover:text-dalBlue dark:hover:text-blue-400 mb-6 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-dalBlue dark:hover:text-white mb-4 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Search
+            <ArrowLeft className="w-4 h-4" /> Back to Directory
           </button>
 
-          <div className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-2xl p-6 shadow-subtle relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-dalBlue" />
-            
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs relative">
             <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-              <div className="space-y-3 flex-1">
+              <div className="space-y-2 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className="font-mono bg-dalBlue/5 dark:bg-slate-700 border-dalBlue/20 dark:border-slate-600 text-dalBlue dark:text-blue-400">
+                  <span className="font-mono text-xs font-bold text-dalBlue dark:text-blue-300 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
                     ID: {tender.sourceTenderId}
-                  </Badge>
-                  <Badge variant={tender.status === 'ACTIVE' ? 'success' : 'secondary'}>{tender.status || 'Published'}</Badge>
+                  </span>
+                  <span className="text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    {tender.status || 'Active'}
+                  </span>
                 </div>
-                <h1 className="text-xl sm:text-2xl font-extrabold text-dalBlue dark:text-blue-400 leading-snug">
-                  {tender.title?.replace(/[\[\]]/g, '')}
+                
+                <h1 className="text-xl sm:text-2xl font-bold font-display text-slate-900 dark:text-white leading-snug">
+                  {tender.title?.replace(/[[\]]/g, '')}
                 </h1>
-                <div className="flex items-center gap-2 text-sm font-semibold text-charcoal/70 dark:text-slate-300">
-                  <Building2 className="w-4 h-4 text-chinarRed" /> {primaryOrg}
+
+                <div className="flex flex-wrap items-center gap-3 pt-1 text-xs">
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-medium">
+                    <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                    <span className="truncate max-w-[320px]">{primaryOrg}</span>
+                  </div>
+
+                  {/* Specific Work Location Badge in Header */}
+                  <div className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-2.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                    <MapPin className="w-3.5 h-3.5 text-chinarRed shrink-0" />
+                    <span>Site: <strong>{workLoc.famousLocation}</strong></span>
+                    {workLoc.pincode && workLoc.pincode !== 'N/A' && (
+                      <span className="font-mono text-[10px] text-slate-500">PIN {workLoc.pincode}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex md:flex-col gap-3 w-full md:w-auto">
+              <div className="flex sm:flex-col gap-2.5 w-full md:w-auto shrink-0">
                 <Button 
                   onClick={() => toggleBookmark(tender)}
                   variant={bookmarked ? "outline" : "default"}
-                  className={`w-full md:w-auto gap-2 ${bookmarked ? 'border-chinarRed text-chinarRed hover:bg-chinarRed/10 dark:hover:bg-red-900/20' : 'bg-dalBlue hover:bg-dalBlue-800 text-white'}`}
+                  className={`w-full text-xs font-bold py-2 ${
+                    bookmarked 
+                      ? 'border-red-200 text-chinarRed hover:bg-red-50 dark:hover:bg-red-950/40' 
+                      : 'bg-dalBlue hover:bg-dalBlue-700 text-white'
+                  }`}
                 >
-                  <Heart className={`w-4 h-4 ${bookmarked ? 'fill-current' : ''}`} />
+                  <Heart className={`w-4 h-4 mr-1.5 ${bookmarked ? 'fill-current text-chinarRed' : ''}`} />
                   {bookmarked ? 'Saved' : 'Save Tender'}
                 </Button>
-                {tender.detailsUrl && (
-                  <a href={tender.detailsUrl} target="_blank" rel="noreferrer" className="w-full">
-                    <Button variant="outline" className="w-full gap-2 bg-white dark:bg-slate-800 text-charcoal dark:text-slate-200">
-                      Original Portal <ExternalLink className="w-4 h-4" />
-                    </Button>
-                  </a>
-                )}
+                
+                <Button 
+                  onClick={handleOpenPortalModal}
+                  variant="outline" 
+                  className="w-full gap-1.5 text-xs font-semibold py-2"
+                >
+                  Original Portal <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                </Button>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Content Layout */}
-        <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Content Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Main Column */}
+          {/* Main 2-Span Column */}
           <div className="lg:col-span-2 space-y-6">
             
             {/* Basic Details Section */}
-            <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-              <h3 className="text-lg font-bold text-dalBlue dark:text-blue-400 mb-4 border-b border-border dark:border-slate-700 pb-3 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-chinarRed" /> Basic Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-                <div className="space-y-1">
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs">
+              <h2 className="text-base font-bold font-display text-slate-900 dark:text-white mb-3 border-b border-slate-100 dark:border-slate-700 pb-2.5 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-dalBlue dark:text-blue-400" /> Basic Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                <div className="space-y-0.5">
                   <DataRow label="Organisation Chain" value={tender.organisationChain?.replace(/\|\|/g, ' > ')} />
                   <DataRow label="Tender Reference Number" value={tender.tenderReferenceNumber} />
                   <DataRow label="Tender ID" value={tender.sourceTenderId} />
                   <DataRow label="Tender Type" value={tender.tenderType} />
                   <DataRow label="Tender Category" value={tender.tenderCategory} />
-                  <DataRow label="General Technical Evaluation Allowed" value={tender.generalTechnicalEvaluationAllowed} />
+                  <DataRow label="Technical Evaluation" value={tender.generalTechnicalEvaluationAllowed} />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <DataRow label="Payment Mode" value={tender.paymentMode} />
                   <DataRow label="Form Of Contract" value={tender.formOfContract} />
                   <DataRow label="No. of Covers" value={tender.noOfCovers} />
-                  <DataRow label="ItemWise Technical Evaluation Allowed" value={tender.itemWiseTechnicalEvaluationAllowed} />
-                  <DataRow label="Is Multi Currency Allowed For BOQ" value={tender.isMultiCurrencyAllowedForBOQ} />
-                  <DataRow label="Allow Two Stage Bidding" value={tender.allowTwoStageBidding} />
+                  <DataRow label="ItemWise Tech Eval" value={tender.itemWiseTechnicalEvaluationAllowed} />
+                  <DataRow label="Multi Currency BOQ" value={tender.isMultiCurrencyAllowedForBOQ} />
+                  <DataRow label="Two Stage Bidding" value={tender.allowTwoStageBidding} />
                 </div>
               </div>
-            </motion.section>
+            </section>
 
-            {/* Payment Instruments & Covers Section */}
+            {/* Work Execution Location Box */}
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-red-50 dark:bg-red-950/40 text-chinarRed flex items-center justify-center shrink-0 border border-red-100 dark:border-red-900">
+                    <MapPin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold font-display text-slate-900 dark:text-white">
+                      Work Execution Location
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Geographic execution site and administrative jurisdiction
+                    </p>
+                  </div>
+                </div>
+
+                <a
+                  href={workLoc.mapSearchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-dalBlue dark:text-blue-300 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors shrink-0"
+                >
+                  <Map className="w-3.5 h-3.5 text-chinarRed" />
+                  <span>Google Maps</span>
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              </div>
+
+              {/* Specific Project Site Text */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700 mb-4">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1 flex items-center gap-1">
+                  <Compass className="w-3 h-3" /> Project Site / Area Description
+                </span>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
+                  {workLoc.specificSite || 'Execution site as specified in tender document.'}
+                </p>
+              </div>
+
+              {/* Geographic Coordinates Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">District / City</span>
+                  <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-chinarRed shrink-0" />
+                    {workLoc.famousLocation}, J&amp;K
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Postal Pincode</span>
+                  <span className="text-xs sm:text-sm font-mono font-bold text-slate-900 dark:text-white">
+                    {workLoc.pincode}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase block mb-0.5">Portal Location</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">
+                    {workLoc.rawLocation || 'Refer to Notice'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Office Details */}
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="font-semibold text-slate-400 block mb-0.5">Bid Opening Office:</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-medium">{workLoc.bidOpeningPlace}</span>
+                </div>
+                {workLoc.preBidMeetingPlace && (
+                  <div>
+                    <span className="font-semibold text-slate-400 block mb-0.5">Pre-Bid Meeting:</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{workLoc.preBidMeetingPlace}</span>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Payment Instruments & Covers */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Payment Instruments Table */}
-              <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-                <h3 className="text-sm font-bold text-dalBlue dark:text-blue-400 mb-4 border-b border-border dark:border-slate-700 pb-3 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-warningGold" /> Payment Instruments
+              <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white mb-3 border-b border-slate-100 dark:border-slate-700 pb-2 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-slate-500" /> Payment Instruments
                 </h3>
                 {tender.paymentMode === 'Offline' && tender.offlineInstruments?.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-charcoal dark:text-slate-300">
-                      <thead className="bg-paper dark:bg-slate-900 text-xs uppercase text-charcoal/60 dark:text-slate-400 border-y border-border dark:border-slate-700">
-                        <tr>
-                          <th className="px-3 py-2">S.No</th>
-                          <th className="px-3 py-2">Instrument Type</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tender.offlineInstruments.map((inst, idx) => (
-                          <tr key={idx} className="border-b border-border/50 dark:border-slate-700/50">
-                            <td className="px-3 py-2 font-semibold">{inst.sNo}</td>
-                            <td className="px-3 py-2">{inst.instrumentType}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <p className="text-xs text-charcoal/60 dark:text-slate-400 font-semibold">Online payment or No instruments listed.</p>
-                )}
-              </motion.section>
-
-              {/* Covers Information Table */}
-              <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-                <h3 className="text-sm font-bold text-dalBlue dark:text-blue-400 mb-4 border-b border-border dark:border-slate-700 pb-3 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-chinarRed" /> Covers Information
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm text-charcoal dark:text-slate-300">
-                    <thead className="bg-paper dark:bg-slate-900 text-xs uppercase text-charcoal/60 dark:text-slate-400 border-y border-border dark:border-slate-700">
+                  <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                    <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] uppercase text-slate-500 border-y border-slate-100 dark:border-slate-700">
                       <tr>
-                        <th className="px-3 py-2">No</th>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Document</th>
+                        <th className="px-2.5 py-1.5">S.No</th>
+                        <th className="px-2.5 py-1.5">Instrument Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {tender.coversInfo?.map((cover, idx) => (
-                        <tr key={idx} className="border-b border-border/50 dark:border-slate-700/50">
-                          <td className="px-3 py-2 font-semibold">{cover.coverNo}</td>
-                          <td className="px-3 py-2 text-xs">{cover.coverType || 'Finance'}</td>
-                          <td className="px-3 py-2 text-xs font-bold text-dalBlue dark:text-blue-400 uppercase">{cover.documentType}</td>
+                      {tender.offlineInstruments.map((inst, idx) => (
+                        <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/60">
+                          <td className="px-2.5 py-1.5 font-mono">{inst.sNo}</td>
+                          <td className="px-2.5 py-1.5">{inst.instrumentType}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              </motion.section>
+                ) : (
+                  <p className="text-xs text-slate-500">Online payment mode or no offline instruments specified.</p>
+                )}
+              </section>
+
+              <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs">
+                <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white mb-3 border-b border-slate-100 dark:border-slate-700 pb-2 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-slate-500" /> Covers Information
+                </h3>
+                <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                  <thead className="bg-slate-50 dark:bg-slate-900 text-[10px] uppercase text-slate-500 border-y border-slate-100 dark:border-slate-700">
+                    <tr>
+                      <th className="px-2.5 py-1.5">No</th>
+                      <th className="px-2.5 py-1.5">Type</th>
+                      <th className="px-2.5 py-1.5">Document</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tender.coversInfo?.map((cover, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 dark:border-slate-700/60">
+                        <td className="px-2.5 py-1.5 font-mono">{cover.coverNo}</td>
+                        <td className="px-2.5 py-1.5">{cover.coverType || 'Fee/PreQual/Technical'}</td>
+                        <td className="px-2.5 py-1.5 font-mono uppercase font-bold text-dalBlue dark:text-blue-400">{cover.documentType}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
             </div>
             
-            {/* Work Item Details Section */}
-            <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-              <h3 className="text-lg font-bold text-dalBlue dark:text-blue-400 mb-4 border-b border-border dark:border-slate-700 pb-3">Work Item Details</h3>
+            {/* Work Item Description */}
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-xs">
+              <h3 className="text-base font-bold font-display text-slate-900 dark:text-white mb-3 border-b border-slate-100 dark:border-slate-700 pb-2.5">
+                Work Item Details
+              </h3>
               
-              <div className="mb-6 p-4 bg-paper dark:bg-slate-900 rounded-lg border border-border/50 dark:border-slate-700">
-                <span className="block text-xs font-bold uppercase text-charcoal/50 dark:text-slate-400 mb-1">Title & Work Description</span>
-                <p className="text-sm font-semibold text-charcoal dark:text-slate-200 leading-relaxed">{tender.workDescription || tender.title}</p>
+              <div className="mb-4 p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Scope &amp; Description</span>
+                <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                  {tender.workDescription || tender.title}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-                <div className="space-y-1">
-                  <DataRow label="NDA/Pre Qualification" value={tender.ndaPreQualification} />
-                  <DataRow label="Independent External Monitor" value={tender.independentExternalMonitorRemarks} />
-                  <DataRow label="Tender Value" value={formatCurrencyINR(tender.estimatedValue)} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                <div className="space-y-0.5">
+                  <DataRow label="Tender Value" value={<span className="font-mono font-bold text-dalBlue dark:text-blue-300">{formatCurrencyINR(tender.estimatedValue)}</span>} />
                   <DataRow label="Product Category" value={tender.productCategory} />
                   <DataRow label="Sub Category" value={tender.subCategory} />
                   <DataRow label="Contract Type" value={tender.contractType} />
-                  <DataRow label="Location" value={tender.location} />
-                  <DataRow label="Pincode" value={tender.pincode} />
+                  <DataRow label="Location" value={`${workLoc.famousLocation} (${tender.location || 'As specified in NIT'})`} />
                 </div>
-                <div className="space-y-1">
-                  <DataRow label="Bid Validity (Days)" value={tender.bidValidityDays} />
-                  <DataRow label="Period Of Work (Days)" value={tender.periodOfWorkDays} />
-                  <DataRow label="Pre Bid Meeting Place" value={tender.preBidMeetingPlace} />
-                  <DataRow label="Pre Bid Meeting Address" value={tender.preBidMeetingAddress} />
-                  <DataRow label="Pre Bid Meeting Date" value={formatDateDisplay(parseDate(tender.preBidMeetingDate))} />
-                  {/* Added Bid Opening Place here to match the portal perfectly */}
+                <div className="space-y-0.5">
+                  <DataRow label="Bid Validity (Days)" value={<span className="font-mono">{tender.bidValidityDays}</span>} />
+                  <DataRow label="Period Of Work" value={<span className="font-mono">{tender.periodOfWorkDays ? `${tender.periodOfWorkDays} Days` : 'N/A'}</span>} />
+                  <DataRow label="Pre-Bid Meeting Date" value={<span className="font-mono">{formatDateDisplay(parseDate(tender.preBidMeetingDate))}</span>} />
                   <DataRow label="Bid Opening Place" value={tender.bidOpeningPlace} />
-                  <DataRow label="Should Allow NDA Tender" value={tender.shouldAllowNDATender} />
-                  <DataRow label="Allow Preferential Bidder" value={tender.allowPreferentialBidder} />
                 </div>
               </div>
-            </motion.section>
-            
+            </section>
 
-            
           </div>
 
           {/* Right Column: Financials, Dates & Documents */}
           <div className="space-y-6">
             
             {/* Tender Fee & EMD Details */}
-            <motion.section variants={fadeUp} className="bg-dalBlue dark:bg-slate-800 border border-dalBlue dark:border-slate-700 rounded-xl p-6 shadow-md text-white">
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                <IndianRupee className="w-5 h-5 text-warningGold" /> Fee & EMD Details
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs">
+              <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white mb-4 border-b border-slate-100 dark:border-slate-700 pb-2 flex items-center gap-1.5">
+                <IndianRupee className="w-4 h-4 text-dalBlue dark:text-blue-400" /> Fee &amp; EMD Details
               </h3>
               
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div>
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60 mb-1">Tender Fee Details</span>
-                  <span className="text-2xl font-extrabold text-white">{formatCurrencyINR(tender.tenderFee)}</span>
-                  <div className="mt-2 text-xs space-y-1 text-white/80">
-                    <p>Fee Payable To: <strong className="text-white">{tender.feePayableTo || 'N/A'}</strong></p>
-                    <p>Fee Payable At: <strong className="text-white">{tender.feePayableAt || 'N/A'}</strong></p>
-                    <p>Exemption Allowed: <strong className={tender.tenderFeeExemptionAllowed === 'Yes' ? 'text-successGreen' : 'text-white'}>{tender.tenderFeeExemptionAllowed || 'N/A'}</strong></p>
+                  <span className="block text-[10px] font-bold uppercase text-slate-400">Tender Fee</span>
+                  <span className="text-xl font-bold font-mono text-slate-900 dark:text-white">{formatCurrencyINR(tender.tenderFee)}</span>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                    <p>Payable To: <strong className="text-slate-700 dark:text-slate-300">{tender.feePayableTo || 'N/A'}</strong></p>
+                    <p>Payable At: <strong className="text-slate-700 dark:text-slate-300">{tender.feePayableAt || 'N/A'}</strong></p>
                   </div>
                 </div>
                 
-                <div className="pt-4 border-t border-white/20">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-white/60 mb-1">EMD Fee Details</span>
-                  <div className="flex items-end gap-2 mb-2">
-                    <span className="text-2xl font-extrabold text-warningGold">{formatCurrencyINR(tender.emdAmount)}</span>
-                    <span className="text-xs text-white/60 mb-1 font-bold">({tender.emdFeeType || 'N/A'} - {tender.emdPercentage || 'N/A'})</span>
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-700">
+                  <span className="block text-[10px] font-bold uppercase text-slate-400">EMD Deposit</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-bold font-mono text-chinarRed">{formatCurrencyINR(tender.emdAmount)}</span>
+                    <span className="text-xs text-slate-500">({tender.emdFeeType || 'Fixed'})</span>
                   </div>
-                  <div className="text-xs space-y-1 text-white/80">
-                    <p>EMD Payable To: <strong className="text-white">{tender.emdPayableTo || 'N/A'}</strong></p>
-                    <p>EMD Payable At: <strong className="text-white">{tender.emdPayableAt || 'N/A'}</strong></p>
-                    <p>Exemption Allowed: <strong className={tender.emdExemptionAllowed === 'Yes' ? 'text-successGreen' : 'text-white'}>{tender.emdExemptionAllowed || 'N/A'}</strong></p>
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                    <p>Payable To: <strong className="text-slate-700 dark:text-slate-300">{tender.emdPayableTo || 'N/A'}</strong></p>
+                    <p>Exemption: <strong className={tender.emdExemptionAllowed === 'Yes' ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-300'}>{tender.emdExemptionAllowed || 'No'}</strong></p>
                   </div>
                 </div>
               </div>
-            </motion.section>
+            </section>
 
             {/* Critical Dates Section */}
-            <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-              <h3 className="text-lg font-bold text-dalBlue dark:text-blue-400 mb-4 flex items-center gap-2 border-b border-border dark:border-slate-700 pb-3">
-                <Calendar className="w-5 h-5 text-chinarRed" /> Critical Dates
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs">
+              <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white mb-3 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
+                <Calendar className="w-4 h-4 text-chinarRed" /> Critical Dates
               </h3>
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Published Date</span>
-                  <span className="text-sm font-bold text-charcoal dark:text-slate-200">{formatDateDisplay(parseDate(tender.publishedDate))}</span>
+              <div className="space-y-2 font-mono text-xs">
+                <div className="flex justify-between py-1">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-slate-500">Published</span>
+                  <span className="text-slate-800 dark:text-slate-200">{formatDateDisplay(parseDate(tender.publishedDate))}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Document Download Start</span>
-                  <span className="text-sm font-bold text-charcoal dark:text-slate-200">{formatDateDisplay(parseDate(tender.documentDownloadStartDate))}</span>
+                <div className="flex justify-between py-1">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-slate-500">Download Start</span>
+                  <span className="text-slate-800 dark:text-slate-200">{formatDateDisplay(parseDate(tender.documentDownloadStartDate))}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Document Download End</span>
-                  <span className="text-sm font-bold text-charcoal dark:text-slate-200">{formatDateDisplay(parseDate(tender.documentDownloadEndDate))}</span>
+                <div className="flex justify-between py-1">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-slate-500">Download End</span>
+                  <span className="text-slate-800 dark:text-slate-200">{formatDateDisplay(parseDate(tender.documentDownloadEndDate))}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Clarification Start</span>
-                  <span className="text-sm font-bold text-charcoal dark:text-slate-200">{formatDateDisplay(parseDate(tender.clarificationStartDate))}</span>
+                <div className="flex justify-between py-1 bg-emerald-50 dark:bg-emerald-950/30 px-2 rounded">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-emerald-800 dark:text-emerald-300">Bid Start</span>
+                  <span className="text-emerald-800 dark:text-emerald-300 font-bold">{formatDateDisplay(parseDate(tender.bidSubmissionStartDate))}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Clarification End</span>
-                  <span className="text-sm font-bold text-charcoal dark:text-slate-200">{formatDateDisplay(parseDate(tender.clarificationEndDate))}</span>
+                <div className="flex justify-between py-1 bg-red-50 dark:bg-red-950/30 px-2 rounded">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-red-800 dark:text-red-300">Bid End</span>
+                  <span className="text-red-800 dark:text-red-300 font-bold">{formatDateDisplay(parseDate(tender.bidSubmissionEndDate))}</span>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 bg-successGreen/5 rounded-md px-2 -mx-2">
-                  <span className="text-[10px] font-bold uppercase text-successGreen">Bid Submission Start</span>
-                  <span className="text-sm font-bold text-successGreen">{formatDateDisplay(parseDate(tender.bidSubmissionStartDate))}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 bg-chinarRed/5 rounded-md px-2 -mx-2">
-                  <span className="text-[10px] font-bold uppercase text-chinarRed">Bid Submission End</span>
-                  <span className="text-sm font-bold text-chinarRed">{formatDateDisplay(parseDate(tender.bidSubmissionEndDate))}</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-1 pt-2 border-t border-border dark:border-slate-700">
-                  <span className="text-[10px] font-bold uppercase text-charcoal/60 dark:text-slate-400">Bid Opening Date</span>
-                  <span className="text-sm font-bold text-dalBlue dark:text-blue-400">{formatDateDisplay(parseDate(tender.bidOpeningDate))}</span>
+                <div className="flex justify-between py-1 pt-2 border-t border-slate-100 dark:border-slate-700">
+                  <span className="font-sans text-[10px] font-semibold uppercase text-slate-500">Bid Opening</span>
+                  <span className="text-dalBlue dark:text-blue-400 font-bold">{formatDateDisplay(parseDate(tender.bidOpeningDate))}</span>
                 </div>
               </div>
-            </motion.section>
+            </section>
 
-            {/* Tender Documents Section */}
-            <motion.section variants={fadeUp} className="bg-white dark:bg-slate-800 border border-border dark:border-slate-700 rounded-xl p-6 shadow-subtle">
-              <h3 className="text-lg font-bold text-dalBlue dark:text-blue-400 mb-4 flex items-center gap-2 border-b border-border dark:border-slate-700 pb-3">
-                <Download className="w-5 h-5 text-chinarRed" /> Tender Documents
+            {/* Official NIT Documents Section */}
+            <section className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs">
+              <h3 className="text-sm font-bold font-display text-slate-900 dark:text-white mb-3 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
+                <Download className="w-4 h-4 text-slate-500" /> Tender Documents
               </h3>
               
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {tender.pdfUrls && tender.pdfUrls.length > 0 ? (
                   tender.pdfUrls.map((pdfStr, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg border border-border dark:border-slate-600 bg-paper dark:bg-slate-900 group">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <FileText className="w-6 h-6 text-chinarRed shrink-0" />
-                        <span className="text-xs font-bold text-charcoal dark:text-slate-300 truncate">Tendernotice_{index + 1}.pdf</span>
+                    <div key={index} className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <FileText className="w-5 h-5 text-chinarRed shrink-0" />
+                        <span className="text-xs font-mono font-medium text-slate-800 dark:text-slate-200 truncate">Tendernotice_{index + 1}.pdf</span>
                       </div>
                       <a href={pdfStr} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase font-bold tracking-wider hover:bg-dalBlue hover:text-white hover:border-dalBlue">
+                        <Button variant="outline" size="sm" className="h-7 text-[11px] font-semibold">
                           View PDF
                         </Button>
                       </a>
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm font-medium text-charcoal/60 dark:text-slate-400 mb-3">No direct PDF link found in database.</p>
-                    <a href={tender.detailsUrl} target="_blank" rel="noopener noreferrer">
-                      <Button className="w-full gap-2 bg-dalBlue hover:bg-dalBlue-800 text-white">
-                        Download from Portal <ExternalLink className="w-4 h-4" />
+                  <div className="p-3.5 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 text-slate-700 dark:text-slate-300 space-y-2.5">
+                    <div className="flex items-start gap-2">
+                      <FileClock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-bold text-amber-900 dark:text-amber-300">
+                          Official NIT PDF Pending Release
+                        </h4>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          Document downloads had not yet commenced at time of portal synchronization.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Download Begins:</span>
+                      <span className="font-mono font-bold">
+                        {formatDateDisplay(parseDate(tender.documentDownloadStartDate)) || 'Refer to portal'}
+                      </span>
+                    </div>
+
+                    <div className="pt-1">
+                      <Button 
+                        onClick={handleOpenPortalModal}
+                        className="w-full gap-1.5 bg-dalBlue hover:bg-dalBlue-700 text-white text-xs font-semibold py-2"
+                      >
+                        Search on Official Portal <ExternalLink className="w-3.5 h-3.5" />
                       </Button>
-                    </a>
+                    </div>
                   </div>
                 )}
               </div>
-            </motion.section>
+            </section>
 
           </div>
-        </motion.div>
+        </div>
       </div>
+
+      {/* Official Portal Helper Dialog */}
+      <Dialog open={isPortalModalOpen} onClose={() => setIsPortalModalOpen(false)}>
+        <DialogContent className="p-0 overflow-hidden max-w-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl">
+          <div className="bg-dalBlue p-5 text-white relative">
+            <button
+              onClick={() => setIsPortalModalOpen(false)}
+              className="absolute top-4 right-4 text-white/70 hover:text-white p-1 rounded-lg"
+              aria-label="Close modal"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-1.5 mb-1 text-amber-300 text-xs font-bold uppercase">
+              <ExternalLink className="w-3.5 h-3.5" /> Official Government Portal
+            </div>
+            <DialogTitle className="text-lg font-bold text-white">
+              Access Notice on JK eProcurement
+            </DialogTitle>
+            <DialogDescription className="text-white/80 text-xs mt-0.5">
+              jktenders.gov.in (Government of Jammu and Kashmir)
+            </DialogDescription>
+          </div>
+
+          <div className="p-5 space-y-3.5 text-xs">
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/40 flex items-start gap-2">
+              <Info className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                <strong className="text-amber-900 dark:text-amber-300 block mb-0.5">Direct Session Timeout Note</strong>
+                Direct GePNIC links time out after 10–15 minutes on NIC servers. Using the pre-copied Tender ID below guarantees access.
+              </div>
+            </div>
+
+            {/* Pre-copied Tender ID Card */}
+            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+              <div className="overflow-hidden">
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block">
+                  Tender ID (Copied to Clipboard)
+                </span>
+                <span className="font-mono text-xs sm:text-sm font-bold text-dalBlue dark:text-blue-400 select-all truncate block">
+                  {tender.sourceTenderId}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => copyToClipboard(tender.sourceTenderId, 'tenderId')}
+                className="gap-1 text-xs shrink-0"
+              >
+                {copiedField === 'tenderId' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Quick 3-step Instructions */}
+            <div className="py-1">
+              <span className="text-[11px] font-bold uppercase text-slate-400 tracking-wider block mb-1.5">
+                Instructions
+              </span>
+              <ol className="space-y-1 text-slate-600 dark:text-slate-300 list-decimal list-inside">
+                <li>Tender ID is already in your clipboard.</li>
+                <li>Click <strong>&quot;Open Portal Search&quot;</strong> below.</li>
+                <li>Paste into <strong>Tender ID</strong> field and click Search.</li>
+              </ol>
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-2 pt-1">
+              <a
+                href="https://jktenders.gov.in/nicgep/app?page=FrontEndAdvancedSearch&service=page"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Button className="w-full gap-1.5 bg-dalBlue hover:bg-dalBlue-700 text-white font-bold py-2 text-xs">
+                  Open Portal Search <ExternalLink className="w-3.5 h-3.5" />
+                </Button>
+              </a>
+
+              <div className="text-center">
+                <a
+                  href="https://jktenders.gov.in"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-500 hover:text-dalBlue text-xs underline"
+                >
+                  Visit JK Tenders Homepage
+                </a>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

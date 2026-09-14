@@ -1,34 +1,44 @@
 /**
  * @file src/context/ThemeProvider.jsx
+ * @description Theme context provider with dependable light/dark switching and local storage persistence.
  */
-import React, { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 
 const ThemeProviderContext = createContext({
-  theme: "system",
+  theme: "light",
   setTheme: () => null,
+  toggleTheme: () => null,
+  isDark: false,
 });
 
-export function ThemeProvider({ children, defaultTheme = "system", storageKey = "tenderhub-theme" }) {
-  const [theme, setTheme] = useState(() => localStorage.getItem(storageKey) || defaultTheme);
+export function ThemeProvider({ children, defaultTheme = "light", storageKey = "tenderhub-theme" }) {
+  const [theme, setThemeState] = useState(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored === "dark" || stored === "light") return stored;
+    return defaultTheme;
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;
     root.classList.remove("light", "dark");
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      root.classList.add(systemTheme);
-      return;
-    }
-
     root.classList.add(theme);
-  }, [theme]);
+    localStorage.setItem(storageKey, theme);
+  }, [theme, storageKey]);
+
+  const setTheme = (newTheme) => {
+    setThemeState(newTheme);
+  };
+
+  const toggleTheme = () => {
+    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme: (t) => { localStorage.setItem(storageKey, t); setTheme(t); } }}>
+    <ThemeProviderContext.Provider value={{ theme, setTheme, toggleTheme, isDark: theme === "dark" }}>
       {children}
     </ThemeProviderContext.Provider>
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useTheme = () => useContext(ThemeProviderContext);

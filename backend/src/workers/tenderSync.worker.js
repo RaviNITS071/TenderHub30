@@ -28,6 +28,19 @@ async function saveDetailedTendersToDatabase(pageData, adapter) {
   const savePromises = pageData.map(async (raw) => {
     try {
       const normalized = adapter.normalize(raw);
+      const updateFields = { ...normalized };
+
+      // Safeguard: If current scrape has no PDFs, check if existing tender in DB already has them
+      if (!normalized.pdfUrls || normalized.pdfUrls.length === 0) {
+        const existingTender = await Tender.findOne(
+          { sourcePortal: normalized.sourcePortal, sourceTenderId: normalized.sourceTenderId },
+          { pdfUrls: 1, nitDocuments: 1 }
+        );
+        if (existingTender && existingTender.pdfUrls && existingTender.pdfUrls.length > 0) {
+          delete updateFields.pdfUrls;
+          delete updateFields.nitDocuments;
+        }
+      }
 
       const result = await Tender.findOneAndUpdate(
         { 
@@ -35,7 +48,7 @@ async function saveDetailedTendersToDatabase(pageData, adapter) {
           sourceTenderId: normalized.sourceTenderId 
         },
         { 
-          $set: normalized 
+          $set: updateFields 
         },
         { 
           upsert: true, 
@@ -47,6 +60,9 @@ async function saveDetailedTendersToDatabase(pageData, adapter) {
 
       if (result.lastErrorObject && !result.lastErrorObject.updatedExisting) {
         newCount++;
+        logger.info(`[Worker] Inserted new tender: ${normalized.sourceTenderId} (PDFs: ${normalized.pdfUrls?.length || 0})`);
+      } else {
+        logger.info(`[Worker] Synchronized existing tender: ${normalized.sourceTenderId} (PDFs: ${normalized.pdfUrls?.length || 0})`);
       }
     } catch (err) {
       logger.error(`Error saving tender ${raw.sourceTenderId}: ${err.message}`);

@@ -1,7 +1,6 @@
 /**
  * @file src/components/ui/Select.jsx
- * @description Lightweight native select wrapper that mimics the Shadcn API structure
- * for easy drop-in replacement in our Filter sidebars.
+ * @description Native select wrapper that mimics the Shadcn API structure with theme support.
  */
 import React from 'react';
 import { cn } from '@/utils/cn';
@@ -27,7 +26,7 @@ export function SelectTrigger({ className, children, value, onValueChange }) {
       value={value || ''}
       onChange={(e) => onValueChange(e.target.value)}
       className={cn(
-        "flex h-10 w-full items-center justify-between rounded-lg border border-border bg-white px-3 py-2 text-sm text-charcoal focus:outline-none focus:ring-2 focus:ring-dalBlue/30 focus:border-dalBlue appearance-none cursor-pointer",
+        "flex h-10 w-full items-center justify-between rounded-xl border border-border dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-charcoal dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-dalBlue/30 dark:focus:ring-blue-500/30 focus:border-dalBlue dark:focus:border-blue-500 appearance-none cursor-pointer transition-all",
         className
       )}
     >

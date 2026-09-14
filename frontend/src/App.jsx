@@ -3,14 +3,14 @@
  * @description Top-level component establishing the application layout shell and route definitions.
  */
 import TenderDetails from './pages/TenderDetails';
-import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
 // Layout Components
 import { Navbar } from './components/layout/Navbar';
 import { Footer } from './components/layout/Footer';
+import { ScrollToTop } from './components/layout/ScrollToTop';
 
-// Pages (We will create these next)
+// Pages
 import Home from './pages/Home';
 import Tenders from './pages/Tenders';
 import Profile from './pages/Profile';
@@ -21,6 +21,7 @@ import Contact from './pages/Contact';
 export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-paper text-charcoal">
+      <ScrollToTop />
       <Navbar />
 
       {/* Main content area grows to push the footer to the bottom */}
@@ -32,8 +33,7 @@ export default function App() {
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/tenders" element={<Tenders />} />
-          <Route path="/tenders/:id" element={<TenderDetails />} /> {/* NEW ROUTE */}
+          <Route path="/tenders/:id" element={<TenderDetails />} />
         </Routes>
       </main>
 

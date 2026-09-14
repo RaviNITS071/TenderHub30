@@ -4,15 +4,17 @@ import { env } from './env.js';
 
 const logger = pino();
 
-// Use explicit object configuration to prevent Upstash TLS handshake drops on Render
+// Parse Redis connection details dynamically from env.REDIS_URL
+const redisUrl = new URL(env.REDIS_URL);
+const isSecure = redisUrl.protocol === 'rediss:' || redisUrl.hostname.includes('upstash.io');
+
 export const redis = new Redis({
-  host: 'humble-werewolf-181905.upstash.io', // Your Upstash Endpoint
-  port: 6379,
-  password: 'gQAAAAAAAsaRAAIgcDFlYTMwODZkYzFlMGU0ZWZlYmE0MmExZGMxNGZlN2FhMg', // Replace with your actual token string
-  tls: {
-    rejectUnauthorized: false
-  },
-  family: 4, // Force IPv4 to prevent Render socket resets
+  host: redisUrl.hostname,
+  port: Number(redisUrl.port) || 6379,
+  username: redisUrl.username || undefined,
+  password: redisUrl.password || undefined,
+  tls: isSecure ? { rejectUnauthorized: false } : undefined,
+  family: 4, // Force IPv4 to prevent socket resets
   keepAlive: 30000,
   maxRetriesPerRequest: null, // Critical requirement for BullMQ
   retryStrategy(times) {

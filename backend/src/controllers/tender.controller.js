@@ -16,80 +16,149 @@ import { aiQueue } from '../workers/queue.js';
  */
 export const getTenders = async (req, res, next) => {
   try {
-    // 1. Extract query parameters with defaults for pagination
+    // 1. Extract query parameters with defaults for pagination, status, and sorting
     const { 
       page = 1, 
       limit = 10, 
       search, 
+      category,
       organisation, 
       department, 
       location, 
-      closingDays 
+      closingDays,
+      status = 'active', // 'active' | 'archived' | 'all'
+      sortBy = 'arrival' // 'arrival' | 'closingAsc' | 'closingDesc' | 'valueDesc' | 'valueAsc'
     } = req.query;
     
-    // Initialize an empty query object
-    const query = {};
-    
-    // 2. Advanced Search Filter (Matches Title, Description, or Tender IDs)
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } }, // 'i' makes it case-insensitive
-        { workDescription: { $regex: search, $options: 'i' } },
-        { tenderReferenceNumber: { $regex: search, $options: 'i' } },
-        { sourceTenderId: { $regex: search, $options: 'i' } }
+    // Helper to safely escape regex special characters
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // Base filter conditions matching textual criteria (shared by active/archived counts)
+    const baseQuery = {};
+
+    // 2. Specific Category Filter (Matches productCategory or tenderCategory)
+    if (category) {
+      const escapedCategory = escapeRegex(category);
+      baseQuery.$or = [
+        { productCategory: { $regex: escapedCategory, $options: 'i' } },
+        { tenderCategory: { $regex: escapedCategory, $options: 'i' } }
       ];
     }
+    
+    // 3. Advanced Search Filter (Matches Title, Description, Tender IDs, Product & Tender Categories)
+    if (search) {
+      const escapedSearch = escapeRegex(search);
+      const searchOr = [
+        { title: { $regex: escapedSearch, $options: 'i' } },
+        { workDescription: { $regex: escapedSearch, $options: 'i' } },
+        { tenderReferenceNumber: { $regex: escapedSearch, $options: 'i' } },
+        { sourceTenderId: { $regex: escapedSearch, $options: 'i' } },
+        { productCategory: { $regex: escapedSearch, $options: 'i' } },
+        { tenderCategory: { $regex: escapedSearch, $options: 'i' } }
+      ];
 
-    // 3. Organisation & Department Filter (Searches inside organisationChain)
+      if (baseQuery.$or) {
+        baseQuery.$and = [
+          { $or: baseQuery.$or },
+          { $or: searchOr }
+        ];
+        delete baseQuery.$or;
+      } else {
+        baseQuery.$or = searchOr;
+      }
+    }
+
+    // 4. Organisation & Department Filter (Searches inside organisationChain)
     // If both are provided, we use $and to ensure both words exist in the chain
     if (organisation || department) {
-      if (organisation && department) {
-        query.$and = [
-          { organisationChain: { $regex: organisation, $options: 'i' } },
-          { organisationChain: { $regex: department, $options: 'i' } }
-        ];
+      const orgConditions = [];
+      if (organisation) orgConditions.push({ organisationChain: { $regex: escapeRegex(organisation), $options: 'i' } });
+      if (department) orgConditions.push({ organisationChain: { $regex: escapeRegex(department), $options: 'i' } });
+
+      if (baseQuery.$and) {
+        baseQuery.$and.push(...orgConditions);
+      } else if (orgConditions.length > 1) {
+        baseQuery.$and = orgConditions;
       } else {
-        query.organisationChain = { $regex: organisation || department, $options: 'i' };
+        baseQuery.organisationChain = orgConditions[0].organisationChain;
       }
     }
 
-    // 4. Location Filter
+    // 5. Location Filter
     if (location) {
-      query.location = { $regex: location, $options: 'i' };
+      baseQuery.location = { $regex: escapeRegex(location), $options: 'i' };
     }
 
-    // 5. Closing Date Timeline Filter
-    // Example: If closingDays = 7, find tenders closing between right now and 7 days from now
-    if (closingDays) {
-      const days = parseInt(closingDays, 10);
-      if (!isNaN(days)) {
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + days);
-        
-        query.closingDate = {
-          $gte: new Date(), // Must be active (closing date is in the future)
-          $lte: targetDate  // Must close on or before the target deadline
-        };
+    const now = new Date();
+
+    // Compute live counts for tabs (Latest / Active vs. Archived / Expired)
+    const activeCount = await Tender.countDocuments({ ...baseQuery, closingDate: { $gte: now } });
+    const archivedCount = await Tender.countDocuments({ ...baseQuery, closingDate: { $lt: now } });
+
+    // 5. Build final query with status and closing date criteria
+    const query = { ...baseQuery };
+
+    if (status === 'archived') {
+      // Archived tenders are those that have already expired
+      query.closingDate = { $lt: now };
+    } else if (status === 'all') {
+      // No automatic closingDate restriction
+      if (closingDays) {
+        const days = parseInt(closingDays, 10);
+        if (!isNaN(days)) {
+          const targetDate = new Date();
+          targetDate.setDate(targetDate.getDate() + days);
+          query.closingDate = { $gte: now, $lte: targetDate };
+        }
+      }
+    } else {
+      // Default: 'active' (latest tenders currently open for bidding)
+      if (closingDays) {
+        const days = parseInt(closingDays, 10);
+        if (!isNaN(days)) {
+          const targetDate = new Date();
+          targetDate.setDate(targetDate.getDate() + days);
+          query.closingDate = { $gte: now, $lte: targetDate };
+        } else {
+          query.closingDate = { $gte: now };
+        }
+      } else {
+        query.closingDate = { $gte: now };
       }
     }
 
-    // 6. Execute Database Query
-    // Fetch matching documents, sort by deadline (closest first), and apply pagination
+    // 6. Sort Configuration: Default to Most Recent Arrival Date first
+    let sortConfig = { publishedDate: -1, createdAt: -1 };
+    if (sortBy === 'closingAsc') {
+      sortConfig = { closingDate: 1 };
+    } else if (sortBy === 'closingDesc') {
+      sortConfig = { closingDate: -1 };
+    } else if (sortBy === 'valueDesc') {
+      sortConfig = { estimatedValue: -1 };
+    } else if (sortBy === 'valueAsc') {
+      sortConfig = { estimatedValue: 1 };
+    } else if (sortBy === 'arrival') {
+      sortConfig = { publishedDate: -1, createdAt: -1 };
+    }
+
+    // 7. Execute Database Query
     const tenders = await Tender.find(query)
-      .sort({ closingDate: 1 }) // 1 for ascending (closest deadlines show first)
+      .sort(sortConfig)
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit));
 
-    // Get the total count of documents matching the query for frontend pagination controls
+    // Get the total count of documents matching the active query for frontend pagination controls
     const total = await Tender.countDocuments(query);
 
-    // 7. Send Response Payload
+    // 8. Send Response Payload
     res.status(200).json({
       data: tenders,
       meta: { 
         total, 
         page: Number(page), 
-        limit: Number(limit) 
+        limit: Number(limit),
+        activeCount,
+        archivedCount
       }
     });
   } catch (error) {
@@ -155,25 +224,73 @@ export const triggerAiAnalysis = async (req, res, next) => {
  */
 export const getTenderStats = async (req, res, next) => {
   try {
-    // 1. Total active tenders count
-    const activeTendersCount = await Tender.countDocuments();
+    const now = new Date();
 
-    // 2. Total unique issuing authorities based on the organisationChain field
-    const authorities = await Tender.distinct('organisationChain');
+    // 1. Total active tenders count
+    const activeTendersCount = await Tender.countDocuments({ closingDate: { $gte: now } });
+
+    // 2. Total unique issuing authorities based on the organisationChain field for active tenders
+    const authorities = await Tender.distinct('organisationChain', { closingDate: { $gte: now } });
     const authoritiesCount = authorities.length;
 
-    // 3. Total monetary value pipeline
-    // FIXED: Changed "$value" to "$estimatedValue" to match the actual JSON schema
+    // 3. Total monetary value pipeline of active tenders
     const valueAggregation = await Tender.aggregate([
+      { $match: { closingDate: { $gte: now } } },
       { $group: { _id: null, totalValue: { $sum: "$estimatedValue" } } } 
     ]);
     const totalValue = valueAggregation.length > 0 ? valueAggregation[0].totalValue : 0;
+
+    // 4. Real Domain / Product category breakdown for active tenders
+    const domainBreakdown = await Tender.aggregate([
+      { $match: { closingDate: { $gte: now }, productCategory: { $exists: true, $ne: null, $ne: '' } } },
+      {
+        $group: {
+          _id: "$productCategory",
+          count: { $sum: 1 },
+          totalValue: { $sum: "$estimatedValue" }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 8 }
+    ]);
+
+    // 5. Broad Categories (Works, Services, Goods) for active tenders
+    const categoryBreakdown = await Tender.aggregate([
+      { $match: { closingDate: { $gte: now }, tenderCategory: { $exists: true, $ne: null, $ne: '' } } },
+      {
+        $group: {
+          _id: "$tenderCategory",
+          count: { $sum: 1 },
+          totalValue: { $sum: "$estimatedValue" }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // 6. Latest 4 active tenders for real live showcase
+    const latestTenders = await Tender.find(
+      { closingDate: { $gte: now } },
+      'title sourceTenderId tenderCategory productCategory estimatedValue organisationChain closingDate publishedDate location'
+    )
+      .sort({ publishedDate: -1, createdAt: -1 })
+      .limit(4);
 
     // Send the computed metrics to the frontend stats section
     res.status(200).json({
       activeTendersCount,
       authoritiesCount,
-      totalValue
+      totalValue,
+      domainBreakdown: domainBreakdown.map((d) => ({
+        name: d._id,
+        count: d.count,
+        totalValue: d.totalValue
+      })),
+      categoryBreakdown: categoryBreakdown.map((c) => ({
+        name: c._id,
+        count: c.count,
+        totalValue: c.totalValue
+      })),
+      latestTenders
     });
   } catch (error) {
     console.error("Error calculating tender stats:", error);
