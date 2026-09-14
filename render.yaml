@@ -1,0 +1,67 @@
+# ==============================================================================
+# Render Blueprint Specification for TenderHub Full-Stack Platform
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Backend API Service (Node.js / Express)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: tenderhub-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false # Set in Render Dashboard from your MongoDB Atlas connection string
+      - key: REDIS_URL
+        sync: false # Set in Render Dashboard from your Upstash Redis connection string
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # Render will automatically generate a secure 256-bit secret
+      - key: JWT_REFRESH_SECRET
+        generateValue: true # Render will automatically generate a secure 256-bit secret
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: CORS_ORIGIN
+        value: https://tenderhub-web.onrender.com
+      - key: R2_ACCESS_KEY_ID
+        sync: false # Cloudflare R2 access key ID
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false # Cloudflare R2 secret access key
+      - key: R2_ACCOUNT_ID
+        sync: false # Cloudflare account ID
+      - key: R2_BUCKET_NAME
+        value: tenderhub
+      - key: OPENAI_API_KEY
+        value: dummy_key
+
+  # ----------------------------------------------------------------------------
+  # 2. Frontend Web Client (Vite / React SPA)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: tenderhub-web
+    runtime: static
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    # SPA Rewrite Rule: Redirects all deep routes (e.g. /tenders, /about) to index.html
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false # Points to https://tenderhub-api.onrender.com/api/v1

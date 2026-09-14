@@ -24,15 +24,20 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-const allowedOrigins = [
+const configuredOrigins = env.CORS_ORIGIN 
+  ? env.CORS_ORIGIN.split(',').map((o) => o.trim()) 
+  : [];
+
+const defaultAllowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
-  env.CORS_ORIGIN
-].filter(Boolean);
+];
+
+const allowedOrigins = [...defaultAllowedOrigins, ...configuredOrigins].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -41,7 +46,8 @@ app.use(cors({
     if (
       allowedOrigins.includes(origin) ||
       /^http:\/\/localhost:\d+$/.test(origin) ||
-      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
+      /\.onrender\.com$/.test(origin)
     ) {
       return callback(null, true);
     }
