@@ -283,6 +283,20 @@ export const getTenderStats = async (req, res, next) => {
       { $sort: { count: -1 } }
     ]);
 
+    // 5b. Department / Organization breakdown for active tenders
+    const departmentBreakdown = await Tender.aggregate([
+      { $match: { closingDate: { $gte: now }, organisationChain: { $exists: true, $ne: null, $ne: '' } } },
+      {
+        $group: {
+          _id: "$organisationChain",
+          count: { $sum: 1 },
+          totalValue: { $sum: "$estimatedValue" }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 10 }
+    ]);
+
     // 6. Latest 4 active tenders for real live showcase
     const latestTenders = await Tender.find(
       { closingDate: { $gte: now } },
@@ -306,6 +320,18 @@ export const getTenderStats = async (req, res, next) => {
         count: c.count,
         totalValue: c.totalValue
       })),
+      departmentBreakdown: departmentBreakdown.map((d) => {
+        const parts = (d._id || '').split('||').map((p) => p.trim());
+        const shortName = parts[parts.length - 1] || parts[0] || 'Department';
+        const rootOrg = parts[0] || '';
+        return {
+          fullName: d._id,
+          shortName,
+          rootOrg,
+          count: d.count,
+          totalValue: d.totalValue
+        };
+      }),
       latestTenders
     });
   } catch (error) {
