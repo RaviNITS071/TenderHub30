@@ -52,17 +52,17 @@ export function Navbar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-1.5">
           {navLinks.map((link) => {
             const isActive = location.pathname === link.path;
             return (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                   isActive
-                    ? 'bg-slate-100 dark:bg-slate-800 text-dalBlue dark:text-white font-bold'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                    ? 'bg-dalBlue/10 dark:bg-blue-500/25 text-dalBlue dark:text-blue-200 font-bold border border-dalBlue/30 dark:border-blue-400/40 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-dalBlue dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 border border-transparent'
                 }`}
               >
                 {link.label}
@@ -76,7 +76,7 @@ export function Navbar() {
           {/* Dependable Light/Dark Theme Switcher */}
           <button
             onClick={toggleTheme}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-dalBlue dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="w-9 h-9 rounded-xl border border-transparent hover:border-slate-300 dark:hover:border-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-dalBlue dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed"
             title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             aria-label="Toggle theme"
           >
@@ -90,7 +90,7 @@ export function Navbar() {
           {/* Saved Tenders Indicator */}
           <Link
             to="/profile"
-            className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-chinarRed dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="relative w-9 h-9 rounded-xl border border-transparent hover:border-red-200 dark:hover:border-red-900 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-chinarRed dark:hover:text-red-400 hover:bg-red-50/60 dark:hover:bg-red-950/30 transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed"
             title="Saved Tenders"
           >
             <Heart className="w-4 h-4" />
@@ -104,7 +104,7 @@ export function Navbar() {
           {/* Contractor Workspace Button */}
           <Link
             to="/profile"
-            className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-dalBlue dark:text-slate-200 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs transition-colors"
+            className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-dalBlue dark:text-slate-200 hover:border-dalBlue dark:hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-xs hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed"
           >
             <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             <span>Contractor Space</span>

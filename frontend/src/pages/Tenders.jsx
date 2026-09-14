@@ -1,11 +1,27 @@
 /**
  * @file src/pages/Tenders.jsx
  * @description Official public procurement directory for Jammu & Kashmir.
- * Features schema-mapped filters: Search, Organisation, Department, Location, and Closing Date.
+ * Features structured dropdown filters (Districts, Categories, Authorities, Divisions),
+ * prominent interactive focus and selection states, and live notice analytics.
  */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, RotateCcw, Filter, FileText, ChevronLeft, ChevronRight, Clock, Archive, ArrowUpDown } from 'lucide-react';
+import { 
+  Search, 
+  RotateCcw, 
+  Filter, 
+  FileText, 
+  ChevronLeft, 
+  ChevronRight, 
+  Clock, 
+  Archive, 
+  ArrowUpDown,
+  MapPin,
+  Layers,
+  Building2,
+  Calendar,
+  X
+} from 'lucide-react';
 
 import { useTenders } from '@/hooks/useTenders';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -14,22 +30,92 @@ import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectItem } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 
+// Static filter datasets mapped to government e-procurement nomenclature
+const DISTRICT_OPTIONS = [
+  { label: 'All Districts & Regions', value: '' },
+  { label: 'Baramulla', value: 'Baramulla' },
+  { label: 'Bandipora', value: 'Bandipora' },
+  { label: 'Srinagar', value: 'Srinagar' },
+  { label: 'Jammu', value: 'Jammu' },
+  { label: 'Pulwama', value: 'Pulwama' },
+  { label: 'Anantnag', value: 'Anantnag' },
+  { label: 'Kulgam', value: 'Kulgam' },
+  { label: 'Budgam', value: 'Budgam' },
+  { label: 'Kupwara', value: 'Kupwara' },
+  { label: 'Ganderbal', value: 'Ganderbal' },
+  { label: 'Shopian', value: 'Shopian' },
+  { label: 'Udhampur', value: 'Udhampur' },
+  { label: 'Reasi', value: 'Reasi' },
+  { label: 'Kathua', value: 'Kathua' },
+  { label: 'Samba', value: 'Samba' },
+  { label: 'Rajouri', value: 'Rajouri' },
+  { label: 'Poonch', value: 'Poonch' },
+  { label: 'Doda', value: 'Doda' },
+  { label: 'Ramban', value: 'Ramban' },
+  { label: 'Kishtwar', value: 'Kishtwar' },
+];
+
+const CATEGORY_OPTIONS = [
+  { label: 'All Work Categories', value: '' },
+  { label: 'Civil Works', value: 'Civil Works' },
+  { label: 'Electrical Works', value: 'Electrical Works' },
+  { label: 'Water Equipments & Boring', value: 'Water Equipments/ Meter/ Drilling/ Boring' },
+  { label: 'Electrical & Maintenance', value: 'Electrical and Maintenance Works' },
+  { label: 'Civil Works - Others', value: 'Civil Works - Others' },
+  { label: 'Medicines & Health Supplies', value: 'Medicines' },
+  { label: 'Miscellaneous Services', value: 'Miscellaneous Services' },
+  { label: 'Miscellaneous Goods', value: 'Miscellaneous Goods' },
+];
+
+const AUTHORITY_OPTIONS = [
+  { label: 'All Government Authorities', value: '' },
+  { label: 'Agriculture Production Department', value: 'AGRICULTURE PRODUCTION DEPARTMENT' },
+  { label: 'Power Development Dept (DC-PDD)', value: 'DC-PDD' },
+  { label: 'Animal & Sheep Husbandry (ASH)', value: 'ASH' },
+];
+
+const DIVISION_OPTIONS = [
+  { label: 'All Divisions & Wings', value: '' },
+  { label: 'Directorate Agriculture Kashmir', value: 'Directorate Agriculture Kashmir' },
+  { label: 'Agriculture District Baramulla', value: 'Department of Agriculture District Baramulla' },
+  { label: 'Command Area Development Pulwama', value: 'CAD Division Pulwama' },
+  { label: 'Soil Conservation Anantnag/Kulgam', value: 'Asstt Soil Conservation Officer Anantnag' },
+  { label: 'HADP / JKCIP Directorate', value: 'Mission Directorate HADP' },
+  { label: 'CE-M & RE Wing Kashmir', value: 'CE-M and RE Wing Kashmir' },
+  { label: 'CIRCLE II-Srinagar (ED-3rd)', value: 'CIRCLE II-Srinagar' },
+  { label: 'ED-Anantnag & Bijbehara', value: 'ED-Anantnag' },
+  { label: 'ED-Kulgam', value: 'ED-Kulgam' },
+  { label: 'ED-Pulwama & Shopian', value: 'South Pulwama' },
+  { label: 'CE-M & RE Wing Jammu', value: 'CE-M and RE Wing Jammu' },
+  { label: 'STD-II Jammu', value: 'STD-II Jammu' },
+  { label: 'ED-Rajouri & Batote', value: 'ED-Rajouri' },
+  { label: 'ED-Udhampur', value: 'ED-Udhampur' },
+  { label: 'Animal Husbandry Jammu', value: 'Animal Husbandry Jammu' },
+  { label: 'Director Fisheries', value: 'DIRECTOR FISHERIES' },
+];
+
+const DEADLINE_OPTIONS = [
+  { label: 'All Closing Deadlines', value: '' },
+  { label: 'Closing in 3 Days (Urgent)', value: '3' },
+  { label: 'Closing in 7 Days', value: '7' },
+  { label: 'Closing in 15 Days', value: '15' },
+  { label: 'Closing in 30 Days', value: '30' },
+];
+
 export default function Tenders() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 1. Filter State
-  const currentSearchParam = searchParams.get('search') || searchParams.get('category') || '';
-  const [advancedSearch, setAdvancedSearch] = useState(currentSearchParam);
-  const [prevSearchParam, setPrevSearchParam] = useState(currentSearchParam);
-  if (currentSearchParam !== prevSearchParam) {
-    setPrevSearchParam(currentSearchParam);
-    setAdvancedSearch(currentSearchParam);
-  }
-  const debouncedSearch = useDebounce(advancedSearch, 600);
-  
+  // 1. Initial State from URL params
+  const initialSearch = searchParams.get('search') || '';
+  const initialCategory = searchParams.get('category') || '';
+
+  const [advancedSearch, setAdvancedSearch] = useState(initialSearch);
+  const debouncedSearch = useDebounce(advancedSearch, 500);
+
+  const [category, setCategory] = useState(initialCategory);
+  const [location, setLocation] = useState('');
   const [organisation, setOrganisation] = useState('');
   const [department, setDepartment] = useState('');
-  const [location, setLocation] = useState('');
   const [closingDate, setClosingDate] = useState('');
   
   // Tab State: Latest vs Archived Tenders
@@ -38,9 +124,20 @@ export default function Tenders() {
   
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Active filter count for badge
+  const activeFilterCount = [
+    Boolean(advancedSearch),
+    Boolean(category),
+    Boolean(location),
+    Boolean(organisation),
+    Boolean(department),
+    Boolean(closingDate),
+  ].filter(Boolean).length;
+
   // 2. Construct API Query
   const queryFilters = {
     search: debouncedSearch,
+    category: category,
     organisation: organisation,
     department: department,
     location: location,
@@ -62,6 +159,7 @@ export default function Tenders() {
   // 3. Handlers
   const handleReset = () => {
     setAdvancedSearch('');
+    setCategory('');
     setOrganisation('');
     setDepartment('');
     setLocation('');
@@ -91,7 +189,11 @@ export default function Tenders() {
               Official public works, civil contracts, and procurement notices published across J&amp;K.
             </p>
           </div>
-          <Button variant="outline" onClick={handleReset} className="gap-1.5 text-xs self-start sm:self-auto">
+          <Button 
+            variant="outline" 
+            onClick={handleReset} 
+            className="gap-1.5 text-xs self-start sm:self-auto hover:border-chinarRed hover:text-chinarRed transition-colors"
+          >
             <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
           </Button>
         </div>
@@ -99,19 +201,34 @@ export default function Tenders() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           
           {/* ---------------- FILTER SIDEBAR ---------------- */}
-          <aside className="lg:col-span-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-xs space-y-5 sticky top-20">
-            <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700 text-dalBlue dark:text-blue-400">
-              <Filter className="w-4 h-4" />
-              <h2 className="text-xs font-bold uppercase tracking-wider">Search Filters</h2>
+          <aside className="lg:col-span-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-xs space-y-4 sticky top-20">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 text-dalBlue dark:text-blue-400">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                <h2 className="text-xs font-bold uppercase tracking-wider">Search Filters</h2>
+              </div>
+              {activeFilterCount > 0 && (
+                <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-dalBlue text-white dark:bg-blue-600 shadow-xs animate-in fade-in">
+                  {activeFilterCount} active
+                </span>
+              )}
             </div>
 
-            {/* Keyword Search */}
+            {/* Keyword Search Input */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Keyword Search
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span>Keyword / NIT No.</span>
+                {advancedSearch && (
+                  <button 
+                    onClick={() => { setAdvancedSearch(''); setCurrentPage(1); }}
+                    className="text-[10px] text-slate-400 hover:text-chinarRed"
+                  >
+                    Clear
+                  </button>
+                )}
               </label>
               <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 sm:top-3" />
                 <Input
                   type="text"
                   value={advancedSearch}
@@ -119,102 +236,181 @@ export default function Tenders() {
                     setAdvancedSearch(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder="Title, ref no, or work..."
+                  placeholder="e.g. Borewell, NIT No, Road..."
                   className="pl-9 text-xs"
                 />
               </div>
             </div>
 
-            {/* Location / District */}
+            {/* District / Location Dropdown */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                District / Location
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-chinarRed" /> District / Region
+                </span>
+                {location && (
+                  <button 
+                    onClick={() => { setLocation(''); setCurrentPage(1); }}
+                    className="text-[10px] text-chinarRed font-bold hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </label>
-              <Input
-                type="text"
-                value={location}
-                onChange={(e) => {
-                  setLocation(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="e.g. Baramulla, Srinagar, Jammu..."
-                className="text-xs"
-              />
+              <Select value={location} onValueChange={(val) => { setLocation(val); setCurrentPage(1); }}>
+                <SelectTrigger className="text-xs">
+                  {DISTRICT_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectTrigger>
+              </Select>
             </div>
 
-            {/* Organisation Chain */}
+            {/* Work Category Dropdown */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Government Division
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" /> Work Domain / Category
+                </span>
+                {category && (
+                  <button 
+                    onClick={() => { setCategory(''); setCurrentPage(1); }}
+                    className="text-[10px] text-chinarRed font-bold hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </label>
-              <Input
-                type="text"
-                value={organisation}
-                onChange={(e) => {
-                  setOrganisation(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="e.g. Jal Shakti, PWD, R&B..."
-                className="text-xs"
-              />
+              <Select value={category} onValueChange={(val) => { setCategory(val); setCurrentPage(1); }}>
+                <SelectTrigger className="text-xs">
+                  {CATEGORY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectTrigger>
+              </Select>
             </div>
 
-            {/* Department */}
+            {/* Government Authority Dropdown */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Department Name
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Procuring Authority
+                </span>
+                {organisation && (
+                  <button 
+                    onClick={() => { setOrganisation(''); setCurrentPage(1); }}
+                    className="text-[10px] text-chinarRed font-bold hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </label>
-              <Input
-                type="text"
-                value={department}
-                onChange={(e) => {
-                  setDepartment(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="e.g. PHE Division, Irrigation..."
-                className="text-xs"
-              />
+              <Select value={organisation} onValueChange={(val) => { setOrganisation(val); setCurrentPage(1); }}>
+                <SelectTrigger className="text-xs">
+                  {AUTHORITY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectTrigger>
+              </Select>
+            </div>
+
+            {/* Division / Sub-Department Dropdown */}
+            <div>
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span>Executive Division / Wing</span>
+                {department && (
+                  <button 
+                    onClick={() => { setDepartment(''); setCurrentPage(1); }}
+                    className="text-[10px] text-chinarRed font-bold hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
+              </label>
+              <Select value={department} onValueChange={(val) => { setDepartment(val); setCurrentPage(1); }}>
+                <SelectTrigger className="text-xs">
+                  {DIVISION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectTrigger>
+              </Select>
             </div>
 
             {/* Closing Date Window */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Closing Deadline
+              <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Submission Deadline
+                </span>
+                {closingDate && (
+                  <button 
+                    onClick={() => { setClosingDate(''); setCurrentPage(1); }}
+                    className="text-[10px] text-chinarRed font-bold hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
               </label>
               <Select value={closingDate} onValueChange={(val) => { setClosingDate(val); setCurrentPage(1); }}>
                 <SelectTrigger className="text-xs">
-                  <SelectItem value="">All Closing Dates</SelectItem>
-                  <SelectItem value="3">Closing in 3 Days (Urgent)</SelectItem>
-                  <SelectItem value="7">Closing in 7 Days</SelectItem>
-                  <SelectItem value="15">Closing in 15 Days</SelectItem>
-                  <SelectItem value="30">Closing in 30 Days</SelectItem>
+                  {DEADLINE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
                 </SelectTrigger>
               </Select>
             </div>
+
+            {/* Quick Reset in Sidebar */}
+            {activeFilterCount > 0 && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleReset}
+                  className="w-full text-xs text-chinarRed border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30"
+                >
+                  Clear All Filters
+                </Button>
+              </div>
+            )}
           </aside>
 
           {/* ---------------- MAIN RESULTS FEED ---------------- */}
           <main className="lg:col-span-3 space-y-4">
             
             {/* Top Tab Bar: Latest vs Archived Notices + Sorting */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl shadow-xs">
-              {/* Menu Tabs */}
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-2xl shadow-xs">
+              {/* Menu Tabs with High-Contrast Active States */}
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => {
                     setStatus('active');
                     setCurrentPage(1);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                     status === 'active'
-                      ? 'bg-white dark:bg-slate-800 text-dalBlue dark:text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-dalBlue text-white shadow-sm font-bold border border-dalBlue dark:bg-blue-600 dark:border-blue-500 ring-2 ring-dalBlue/20 dark:ring-blue-400/30'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-dalBlue dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
                   }`}
                 >
-                  <Clock className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" />
+                  <Clock className={`w-3.5 h-3.5 ${status === 'active' ? 'text-white' : 'text-dalBlue dark:text-blue-400'}`} />
                   <span>Latest Notices</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                    status === 'active' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
                     {activeCount}
                   </span>
                 </button>
@@ -225,22 +421,26 @@ export default function Tenders() {
                     setStatus('archived');
                     setCurrentPage(1);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                     status === 'archived'
-                      ? 'bg-white dark:bg-slate-800 text-dalBlue dark:text-white shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-sm font-bold border border-slate-800 dark:border-slate-600 ring-2 ring-slate-800/20 dark:ring-slate-500/30'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
                   }`}
                 >
-                  <Archive className="w-3.5 h-3.5 text-slate-400" />
+                  <Archive className={`w-3.5 h-3.5 ${status === 'archived' ? 'text-white' : 'text-slate-400'}`} />
                   <span>Archived (Expired)</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                    status === 'archived' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
                     {archivedCount}
                   </span>
                 </button>
               </div>
 
               {/* Sorting Selector */}
-              <div className="flex items-center gap-1.5 px-2">
+              <div className="flex items-center gap-2 px-1 sm:px-2">
                 <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Sort:</span>
                 <select
@@ -249,7 +449,7 @@ export default function Tenders() {
                     setSortBy(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                  className="bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-white hover:border-dalBlue dark:hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-dalBlue/30 focus:border-dalBlue cursor-pointer shadow-xs transition-all"
                 >
                   <option value="arrival">Arrival Date (Newest First)</option>
                   <option value="closingAsc">Deadline (Soonest First)</option>
@@ -261,44 +461,71 @@ export default function Tenders() {
             </div>
 
             {/* Active Filter Chips Bar */}
-            {(advancedSearch || organisation || department || location || closingDate) && (
-              <div className="flex flex-wrap items-center gap-2 p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs shadow-xs">
-                <span className="font-semibold text-slate-400 uppercase text-[10px] mr-1">Active:</span>
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center gap-2 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs shadow-xs">
+                <span className="font-semibold text-slate-400 dark:text-slate-500 uppercase text-[10px] mr-1">Active:</span>
                 
                 {advancedSearch && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
                     <span>Search: &quot;{advancedSearch}&quot;</span>
-                    <button onClick={() => setAdvancedSearch('')} className="hover:text-chinarRed font-bold ml-1">×</button>
+                    <button onClick={() => setAdvancedSearch('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
                   </span>
                 )}
-                {organisation && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                    <span>Division: {organisation}</span>
-                    <button onClick={() => setOrganisation('')} className="hover:text-chinarRed font-bold ml-1">×</button>
-                  </span>
-                )}
-                {department && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                    <span>Dept: {department}</span>
-                    <button onClick={() => setDepartment('')} className="hover:text-chinarRed font-bold ml-1">×</button>
-                  </span>
-                )}
+
                 {location && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                    <span>Location: {location}</span>
-                    <button onClick={() => setLocation('')} className="hover:text-chinarRed font-bold ml-1">×</button>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <MapPin className="w-3 h-3 text-chinarRed" />
+                    <span>District: {location}</span>
+                    <button onClick={() => setLocation('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
                   </span>
                 )}
+
+                {category && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <Layers className="w-3 h-3" />
+                    <span>Category: {category}</span>
+                    <button onClick={() => setCategory('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {organisation && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <Building2 className="w-3 h-3" />
+                    <span className="truncate max-w-[160px]">Authority: {organisation}</span>
+                    <button onClick={() => setOrganisation('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {department && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <span className="truncate max-w-[160px]">Division: {department}</span>
+                    <button onClick={() => setDepartment('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
                 {closingDate && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-medium">
-                    <span>Closing in: {closingDate}d</span>
-                    <button onClick={() => setClosingDate('')} className="hover:text-chinarRed font-bold ml-1">×</button>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <Calendar className="w-3 h-3" />
+                    <span>Deadline: &le; {closingDate} days</span>
+                    <button onClick={() => setClosingDate('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
                   </span>
                 )}
 
                 <button
                   onClick={handleReset}
-                  className="text-chinarRed font-semibold hover:underline text-xs ml-auto"
+                  className="text-chinarRed font-bold hover:underline text-xs ml-auto cursor-pointer"
                 >
                   Clear All
                 </button>
@@ -306,7 +533,7 @@ export default function Tenders() {
             )}
 
             {/* Total Results Summary */}
-            <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg text-xs text-slate-600 dark:text-slate-400">
+            <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs text-slate-600 dark:text-slate-400 shadow-xs">
               <span>
                 Showing <strong className="font-mono text-sm text-dalBlue dark:text-blue-400 font-bold">{totalCount}</strong> {status === 'archived' ? 'archived notices' : 'active notices'}
               </span>
@@ -317,7 +544,7 @@ export default function Tenders() {
 
             {/* Loading State */}
             {isLoading && (
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center space-y-3 shadow-xs">
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center space-y-3 shadow-xs">
                 <div className="w-8 h-8 rounded-full border-3 border-dalBlue border-t-transparent animate-spin mx-auto" />
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Loading tender notices...</p>
               </div>
@@ -325,7 +552,7 @@ export default function Tenders() {
 
             {/* Error State */}
             {isError && (
-              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl p-6 text-center text-red-700 dark:text-red-300 text-xs space-y-1">
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-2xl p-6 text-center text-red-700 dark:text-red-300 text-xs space-y-1">
                 <p className="font-bold text-sm">Unable to load tender directory.</p>
                 <p>{error?.message || 'Please verify database connection.'}</p>
               </div>
@@ -333,13 +560,13 @@ export default function Tenders() {
 
             {/* Tender Feed */}
             {!isLoading && !isError && tenders.length > 0 && (
-              <div className="space-y-3.5">
+              <div className="space-y-4">
                 {tenders.map((tender) => (
                   <TenderCard key={tender._id || tender.sourceTenderId} tender={tender} />
                 ))}
 
                 {/* Standard Pagination */}
-                <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl mt-4 shadow-xs gap-3">
+                <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl mt-6 shadow-xs gap-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     Page <strong className="text-slate-800 dark:text-white font-mono">{currentPage}</strong> of <strong className="text-slate-800 dark:text-white font-mono">{totalPages}</strong>
                   </span>
@@ -353,7 +580,7 @@ export default function Tenders() {
                       <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Prev
                     </Button>
                     
-                    <div className="h-8 px-3 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-md text-xs font-mono font-bold text-dalBlue dark:text-blue-400 border border-slate-200 dark:border-slate-700">
+                    <div className="h-8 px-3 flex items-center justify-center bg-dalBlue text-white dark:bg-blue-600 rounded-lg text-xs font-mono font-bold shadow-xs border border-dalBlue dark:border-blue-500">
                       {currentPage}
                     </div>
 
@@ -371,7 +598,7 @@ export default function Tenders() {
 
             {/* Empty State */}
             {!isLoading && !isError && tenders.length === 0 && (
-              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center space-y-2.5 shadow-xs">
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center space-y-3 shadow-xs">
                 <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
                 <h4 className="text-base font-bold text-slate-800 dark:text-white">
                   {status === 'archived' ? 'No Archived Notices Found' : 'No Matching Tender Notices'}
@@ -379,10 +606,10 @@ export default function Tenders() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                   {status === 'archived'
                     ? 'No expired notices match your current filters. Adjust your criteria or switch to Latest Notices.'
-                    : 'Try clearing specific department or district filters to broaden your search results.'}
+                    : 'Try clearing specific department, category, or district filters to broaden your search results.'}
                 </p>
                 <div className="pt-2">
-                  <Button variant="outline" onClick={handleReset} className="text-xs">
+                  <Button variant="outline" onClick={handleReset} className="text-xs hover:border-dalBlue">
                     Reset All Filters
                   </Button>
                 </div>

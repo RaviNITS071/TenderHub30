@@ -19,7 +19,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }) {
           variant="outline" size="icon"
           onClick={() => onPageChange(1)} disabled={currentPage === 1}
           title="First Page"
-          className="border-border dark:border-slate-800"
+          className="hover:border-dalBlue dark:hover:border-blue-400"
         >
           <ChevronsLeft className="w-4 h-4" />
         </Button>
@@ -27,13 +27,13 @@ export function Pagination({ currentPage, totalPages, onPageChange }) {
           variant="outline" size="icon"
           onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1}
           title="Previous Page"
-          className="border-border dark:border-slate-800"
+          className="hover:border-dalBlue dark:hover:border-blue-400"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
         
         {/* Current page indicator block */}
-        <div className="h-10 px-4 flex items-center justify-center bg-paper dark:bg-slate-900 rounded-xl text-sm font-bold font-mono text-dalBlue dark:text-blue-300 border border-border dark:border-slate-800">
+        <div className="h-10 px-4 flex items-center justify-center bg-dalBlue text-white dark:bg-blue-600 rounded-xl text-sm font-bold font-mono shadow-xs border border-dalBlue dark:border-blue-500">
           {currentPage}
         </div>
 
@@ -41,7 +41,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }) {
           variant="outline" size="icon"
           onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages}
           title="Next Page"
-          className="border-border dark:border-slate-800"
+          className="hover:border-dalBlue dark:hover:border-blue-400"
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
@@ -49,7 +49,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }) {
           variant="outline" size="icon"
           onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages}
           title="Last Page"
-          className="border-border dark:border-slate-800"
+          className="hover:border-dalBlue dark:hover:border-blue-400"
         >
           <ChevronsRight className="w-4 h-4" />
         </Button>

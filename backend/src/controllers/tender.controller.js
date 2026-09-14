@@ -84,9 +84,25 @@ export const getTenders = async (req, res, next) => {
       }
     }
 
-    // 5. Location Filter
+    // 5. Location Filter (searches location, title, or organisationChain where districts are commonly recorded)
     if (location) {
-      baseQuery.location = { $regex: escapeRegex(location), $options: 'i' };
+      const locOr = [
+        { location: { $regex: escapeRegex(location), $options: 'i' } },
+        { title: { $regex: escapeRegex(location), $options: 'i' } },
+        { organisationChain: { $regex: escapeRegex(location), $options: 'i' } }
+      ];
+
+      if (baseQuery.$and) {
+        baseQuery.$and.push({ $or: locOr });
+      } else if (baseQuery.$or) {
+        baseQuery.$and = [
+          { $or: baseQuery.$or },
+          { $or: locOr }
+        ];
+        delete baseQuery.$or;
+      } else {
+        baseQuery.$or = locOr;
+      }
     }
 
     const now = new Date();
