@@ -17,11 +17,11 @@ import { optionalAuth, verifyToken } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
-// Profile & Preferences (supports authenticated contractor with guest fallback)
+// Profile & Preferences (reading supports guest preview; updating strictly requires authentication)
 router.get('/profile', optionalAuth, getContractorProfile);
-router.put('/profile', optionalAuth, updateContractorProfile);
+router.put('/profile', verifyToken, updateContractorProfile);
 router.get('/preferences', optionalAuth, getContractorPreferences);
-router.put('/preferences', optionalAuth, updateContractorPreferences);
+router.put('/preferences', verifyToken, updateContractorPreferences);
 
 // Contractor-scoped Saved Tenders (Bookmarks)
 router.get('/saved-tenders', optionalAuth, getSavedTenders);

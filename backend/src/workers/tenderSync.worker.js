@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { JKTenderDateAdapter } from '../services/adapters/JKTenderDateAdapter.js';
 import SyncJob from '../models/SyncJob.js';
 import SystemLog from '../models/SystemLog.js';
+import { telegramService } from '../services/telegram.service.js';
 
 const logger = pino();
 const redisUrl = new URL(env.REDIS_URL);
@@ -17,7 +18,8 @@ const connection = {
 
 export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
   const startTime = Date.now();
-  logger.info(`Processing Tender Sync Job: ${job.name} (ID: ${job.id})`);
+  const slotLabel = job.data?.slotLabel || '';
+  logger.info(`Processing Tender Sync Job: ${job.name} (ID: ${job.id}, Slot: ${slotLabel || 'Ad-hoc'})`);
 
   const adapter = new JKTenderDateAdapter();
   const triggeredBy = job.data?.triggeredBy || 'CRON_SCHEDULE';
@@ -32,6 +34,12 @@ export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
   if (job.name === 'retry-missing-pdfs') {
     try {
       logger.info(`[Worker] Running pending documents recovery job...`);
+      await telegramService.sendCrawlStarted({
+        mode: 'RECOVERY',
+        targetLimit: '50 Pending Documents',
+        slotLabel: slotLabel || 'Document Recovery Sweep'
+      }).catch(() => {});
+
       const result = await adapter.fetchPendingDocuments({ limit: 50, headless: true });
 
       syncRecord.status = 'completed';
@@ -59,8 +67,17 @@ export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
 
   // Standard Job: Daily Incremental Ingestion via JKTenderDateAdapter
   try {
-    const limit = job.data?.limit || 100;
-    logger.info(`[Worker] Running daily tender crawl for today's active tenders (Target limit: ${limit})...`);
+    const limit = job.data?.limit !== undefined ? job.data.limit : Infinity;
+    const limitLabel = limit === Infinity ? 'Unlimited (All Today\'s Tenders)' : limit;
+    logger.info(`[Worker] Running daily tender crawl for today's active tenders (Target limit: ${limitLabel}, Slot: ${slotLabel || 'Ad-hoc'})...`);
+
+    // Broadcast Crawl Started Notification
+    await telegramService.sendCrawlStarted({
+      mode: 'DAILY',
+      targetLimit: `All Today's Active Tenders (${limitLabel})`,
+      slotLabel: slotLabel || 'Automated Ingestion'
+    }).catch(() => {});
+
     const crawlSummary = await adapter.fetchTendersByDate({
       targetDate: 'today',
       limit,
@@ -84,6 +101,18 @@ export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
       metadata: { durationMs: syncRecord.durationMs, itemsProcessed: syncRecord.itemsProcessed }
     }).catch(() => {});
 
+    // Broadcast Crawl Completed Notification
+    await telegramService.sendCrawlCompleted({
+      mode: 'DAILY',
+      slotLabel: slotLabel || 'Automated Ingestion',
+      savedCount: crawlSummary.totalIngested || 0,
+      skippedCount: crawlSummary.totalSkipped || 0,
+      pdfCount: crawlSummary.totalPdfsSecured || 0,
+      boqCount: crawlSummary.totalBoqsSecured || 0,
+      missingPdfCount: crawlSummary.totalWithoutDocuments || 0,
+      durationMs: syncRecord.durationMs
+    }).catch(() => {});
+
     return crawlSummary;
 
   } catch (error) {
@@ -99,6 +128,12 @@ export const tenderSyncWorker = new Worker('TenderQueue', async (job) => {
       message: `Tender ingestion failed (${triggeredBy}): ${error.message}`,
       stack: error.stack,
       metadata: { durationMs: syncRecord.durationMs }
+    }).catch(() => {});
+
+    // Broadcast Crawl Error Notification
+    await telegramService.sendCrawlError({
+      mode: 'DAILY',
+      error: error.message
     }).catch(() => {});
 
     throw error;

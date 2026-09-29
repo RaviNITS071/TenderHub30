@@ -30,6 +30,7 @@ import {
   triggerMirrorSync,
   getPendingDocsOverview,
   triggerPendingDocsFetch,
+  triggerPortalReconciliation,
 } from '../controllers/admin.controller.js';
 
 const router = express.Router();
@@ -66,9 +67,10 @@ router.post('/sync/schedule-config', updateScheduleConfig);
 router.get('/pending-docs/overview', getPendingDocsOverview);
 router.post('/pending-docs/fetch', triggerPendingDocsFetch);
 
-// 7. Maintenance & Archive Purge
+// 7. Maintenance, Archive Purge & Parity Reconciliation
 router.post('/maintenance/purge-archive', purgeExpiredArchive);
 router.post('/maintenance/purge-expired', purgeExpiredTendersNow);
+router.post('/maintenance/reconcile-portal', triggerPortalReconciliation);
 
 // 8. Disaster Recovery & Automated Daily Backup
 router.get('/backup/status', getBackupStatus);

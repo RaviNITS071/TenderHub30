@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   ChevronRight
 } from 'lucide-react';
-import { adminApi, getStoredAdminKey } from './services/api';
+import { adminApi, getStoredAdminKey, getStoredAdminEmail } from './services/api';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { AdminLogin } from './components/AdminLogin';
 import { Navbar } from './components/Navbar';
@@ -35,8 +35,9 @@ function AdminAppContent() {
   // Validate stored credentials on load
   useEffect(() => {
     const key = getStoredAdminKey();
-    if (key) {
-      adminApi.verify(key)
+    const email = getStoredAdminEmail();
+    if (key && email) {
+      adminApi.verify(key, email)
         .then(() => setIsAuthenticated(true))
         .catch(() => setIsAuthenticated(false))
         .finally(() => setIsInitialLoading(false));

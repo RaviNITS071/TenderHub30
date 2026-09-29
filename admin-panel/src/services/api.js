@@ -9,6 +9,22 @@ export function getStoredAdminKey() {
   return sessionStorage.getItem('TENDERHUB_ADMIN_KEY') || localStorage.getItem('TENDERHUB_ADMIN_KEY') || '';
 }
 
+export function getStoredAdminEmail() {
+  return sessionStorage.getItem('TENDERHUB_ADMIN_EMAIL') || localStorage.getItem('TENDERHUB_ADMIN_EMAIL') || '';
+}
+
+export function setStoredAdminCredentials(key, email, persist = false) {
+  sessionStorage.setItem('TENDERHUB_ADMIN_KEY', key);
+  sessionStorage.setItem('TENDERHUB_ADMIN_EMAIL', email);
+  if (persist) {
+    localStorage.setItem('TENDERHUB_ADMIN_KEY', key);
+    localStorage.setItem('TENDERHUB_ADMIN_EMAIL', email);
+  } else {
+    localStorage.removeItem('TENDERHUB_ADMIN_KEY');
+    localStorage.removeItem('TENDERHUB_ADMIN_EMAIL');
+  }
+}
+
 export function setStoredAdminKey(key, persist = false) {
   sessionStorage.setItem('TENDERHUB_ADMIN_KEY', key);
   if (persist) {
@@ -18,17 +34,25 @@ export function setStoredAdminKey(key, persist = false) {
   }
 }
 
-export function clearStoredAdminKey() {
+export function clearStoredAdminCredentials() {
   sessionStorage.removeItem('TENDERHUB_ADMIN_KEY');
+  sessionStorage.removeItem('TENDERHUB_ADMIN_EMAIL');
   localStorage.removeItem('TENDERHUB_ADMIN_KEY');
+  localStorage.removeItem('TENDERHUB_ADMIN_EMAIL');
+}
+
+export function clearStoredAdminKey() {
+  clearStoredAdminCredentials();
 }
 
 async function request(endpoint, options = {}) {
   const adminKey = options.adminKey || getStoredAdminKey();
+  const adminEmail = options.adminEmail || getStoredAdminEmail();
 
   const headers = {
     'Content-Type': 'application/json',
     'x-admin-key': adminKey,
+    'x-admin-email': adminEmail,
     ...options.headers,
   };
 
@@ -38,7 +62,7 @@ async function request(endpoint, options = {}) {
   });
 
   if (response.status === 401) {
-    clearStoredAdminKey();
+    clearStoredAdminCredentials();
     const error = new Error('UNAUTHORIZED_ADMIN');
     error.status = 401;
     throw error;
@@ -53,7 +77,7 @@ async function request(endpoint, options = {}) {
 }
 
 export const adminApi = {
-  verify: (key) => request('/verify', { adminKey: key }),
+  verify: (key, email) => request('/verify', { adminKey: key, adminEmail: email }),
   getTelemetry: () => request('/telemetry'),
   getOverview: () => request('/overview'),
   getDiagnostics: () => request('/diagnostics'),

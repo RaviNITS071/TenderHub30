@@ -8,7 +8,8 @@ class TelegramService {
   constructor() {
     this.token = process.env.TELEGRAM_BOT_TOKEN || '';
     this.chatId = process.env.TELEGRAM_CHAT_ID || '';
-    this.apiUrl = this.token ? `https://api.telegram.org/bot${this.token}/sendMessage` : null;
+    this.apiBase = (process.env.TELEGRAM_API_BASE || 'https://api.telegram.org').replace(/\/$/, '');
+    this.apiUrl = this.token ? `${this.apiBase}/bot${this.token}/sendMessage` : null;
     this.lastProgressSentAt = 0;
   }
 
@@ -46,7 +47,7 @@ class TelegramService {
         console.warn(`⚠️ [Telegram] API Warning: ${data.description || 'Unknown error'}`);
       }
     } catch (err) {
-      console.warn(`⚠️ [Telegram] Direct connection failed (${err.code || err.message}). Likely ISP restriction on api.telegram.org in local network.`);
+      console.warn(`⚠️ [Telegram] Direct connection failed (${err.code || err.message}). Likely ISP restriction on ${this.apiBase} in local network.`);
     }
 
     return telegramSent;
@@ -88,11 +89,18 @@ class TelegramService {
   /**
    * Crawl Started Notification
    */
-  async sendCrawlStarted({ mode = 'FULL', targetLimit = 'All', resumed = false, resumeDetails = null }) {
-    const title = mode === 'FULL' ? '🚀 <b>TenderHub Full Crawl Started</b>' : '⚡ <b>TenderHub Daily Catch-Up Started</b>';
+  async sendCrawlStarted({ mode = 'FULL', targetLimit = 'All', slotLabel = '', resumed = false, resumeDetails = null }) {
+    const title = mode === 'FULL' 
+      ? '🚀 <b>TenderHub Full Crawl Started</b>' 
+      : mode === 'RECOVERY'
+        ? '📑 <b>TenderHub Document Recovery Started</b>'
+        : '⚡ <b>TenderHub Ingestion Cycle Started</b>';
     let msg = `${title}\n\n`;
     msg += `📍 <b>Portal:</b> J&K Tenders (jktenders.gov.in)\n`;
-    msg += `🎯 <b>Target Limit:</b> ${targetLimit}\n`;
+    if (slotLabel) {
+      msg += `⏰ <b>Schedule Slot:</b> ${slotLabel}\n`;
+    }
+    msg += `🎯 <b>Target Scope:</b> ${targetLimit}\n`;
     msg += `🔄 <b>Status:</b> ${resumed ? 'Resuming from Checkpoint' : 'Fresh Run'}\n`;
 
     if (resumed && resumeDetails) {
@@ -101,9 +109,19 @@ class TelegramService {
     }
 
     msg += `⏰ <b>Time:</b> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST\n`;
-    msg += `\n<i>We'll notify you as milestones are reached.</i>`;
+    msg += `\n<i>Automated ingestion cycle active. We will broadcast a summary when complete.</i>`;
 
-    return this.sendMessage(msg);
+    const tgSent = await this.sendMessage(msg);
+    if (!tgSent) {
+      const emailSubject = `🚀 [TenderHub Alert] Ingestion Started (${slotLabel || mode})`;
+      await this.sendEmailAlert(
+        emailSubject,
+        `<div style="font-family: sans-serif; padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px;"><h3>${title}</h3><p>${msg.replace(/\n/g, '<br>')}</p></div>`,
+        msg
+      );
+    }
+
+    return tgSent;
   }
 
   /**
@@ -152,6 +170,7 @@ class TelegramService {
    */
   async sendCrawlCompleted({
     mode = 'FULL',
+    slotLabel = '',
     savedCount = 0,
     skippedCount = 0,
     pdfCount = 0,
@@ -163,8 +182,11 @@ class TelegramService {
     const secs = Math.floor((durationMs % 60000) / 1000);
     const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
-    let msg = `🎉 <b>TenderHub Crawl Completed Successfully!</b>\n\n`;
+    let msg = `🎉 <b>TenderHub Ingestion Completed Successfully!</b>\n\n`;
     msg += `📋 <b>Mode:</b> ${mode === 'FULL' ? 'Full Active Tenders Crawl' : 'Daily Incremental Sync'}\n`;
+    if (slotLabel) {
+      msg += `⏰ <b>Schedule Slot:</b> ${slotLabel}\n`;
+    }
     msg += `✅ <b>Tenders Saved / Updated:</b> ${savedCount}\n`;
     msg += `⏩ <b>Tenders Skipped:</b> ${skippedCount}\n`;
     msg += `📄 <b>PDFs Secured to R2:</b> ${pdfCount}\n`;
@@ -176,7 +198,17 @@ class TelegramService {
     msg += `⏰ <b>Finished:</b> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST\n\n`;
     msg += `<i>All documents are stored safely in Cloudflare R2 & MongoDB Atlas.</i>`;
 
-    return this.sendMessage(msg);
+    const tgSent = await this.sendMessage(msg);
+    if (!tgSent) {
+      const emailSubject = `🎉 [TenderHub Alert] Ingestion Completed (${slotLabel || mode})`;
+      await this.sendEmailAlert(
+        emailSubject,
+        `<div style="font-family: sans-serif; padding: 18px; border: 1px solid #e2e8f0; border-radius: 8px;"><h3>🎉 TenderHub Ingestion Completed</h3><p>${msg.replace(/\n/g, '<br>')}</p></div>`,
+        msg
+      );
+    }
+
+    return tgSent;
   }
 
   /**

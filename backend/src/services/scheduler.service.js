@@ -17,6 +17,7 @@ import SystemLog from '../models/SystemLog.js';
 import { tenderQueue } from '../workers/queue.js';
 import { retentionService } from './retention.service.js';
 import { backupService } from './backup.service.js';
+import { reconciliationService } from './reconciliation.service.js';
 
 const logger = pino();
 
@@ -34,25 +35,35 @@ export class SchedulerService {
     // 1. Ensure global cron configuration document exists in MongoDB
     await this.ensureCronConfig();
 
-    // 2. Schedule user's exact required times (Timezone: Asia/Kolkata / Indian Standard Time)
-    // 9:00 AM
-    this.scheduleSyncSlot('0 9 * * *', '09:00 AM');
-    // 10:00 AM
-    this.scheduleSyncSlot('0 10 * * *', '10:00 AM');
-    // 1:00 PM (13:00)
-    this.scheduleSyncSlot('0 13 * * *', '01:00 PM');
-    // 3:00 PM (15:00)
-    this.scheduleSyncSlot('0 15 * * *', '03:00 PM');
-    // 6:30 PM (18:30)
-    this.scheduleSyncSlot('30 18 * * *', '06:30 PM');
+    // 2. Schedule Office-Hours Real-Time Polling (Every 30 mins: 09:05 AM to 06:35 PM IST, Mon-Sat)
+    // Triggers at minute :05 and :35 of every hour between 9 AM and 6 PM IST
+    this.scheduleSyncSlot('5,35 9-18 * * 1-6', '30-Min Real-Time Ingestion (Office Hours)');
 
-    // 3. Automated Expired Tenders Purge & Daily DB Backup (Runs daily at 03:00 AM IST)
+    // 3. Evening Wrap-Up Catch-Up Run (19:15 / 07:15 PM IST, Mon-Sat)
+    // Ensures all tenders from 9:00 AM to 7:10 PM are captured before offices shut
+    this.scheduleSyncSlot('15 19 * * 1-6', 'Master Evening Sweep (07:15 PM)');
+
+    // 4. Automated Daily Document Recovery Sweep (20:00 / 08:00 PM IST, Mon-Sat)
+    // Sweeps tenders whose document download window opened during today's office hours
+    cron.schedule('0 20 * * 1-6', async () => {
+      logger.info('[Scheduler] ⏰ Running daily 08:00 PM Document Recovery Sweep...');
+      await this.triggerDocumentRecovery();
+    }, {
+      timezone: 'Asia/Kolkata'
+    });
+
+    // 5. Automated Expired Tenders Purge, Portal Reconciliation & Daily DB Backup (Runs daily at 03:00 AM IST)
     cron.schedule('0 3 * * *', async () => {
       logger.info('[Scheduler] ⏰ Running scheduled 03:00 AM expired tenders purge from MongoDB & Cloudflare R2...');
       await retentionService.purgeExpiredTenders('CRON_SCHEDULE_03AM').catch(err => {
         logger.error(`[Scheduler] Purge failed: ${err.message}`);
       });
       await this.purgeExpiredArchivedTenders('CRON_SCHEDULE_03AM');
+
+      logger.info('[Scheduler] ⏰ Running scheduled 03:00 AM Portal Parity Reconciliation...');
+      await reconciliationService.reconcileActiveTenders('CRON_SCHEDULE_03AM').catch(err => {
+        logger.error(`[Scheduler] 03:00 AM reconciliation failed: ${err.message}`);
+      });
       
       logger.info('[Scheduler] Running scheduled nightly database backup & secondary Cloudflare mirror...');
       await backupService.createDatabaseBackup().catch(err => {
@@ -68,7 +79,7 @@ export class SchedulerService {
       timezone: 'Asia/Kolkata'
     });
 
-    // 4. Real-time Status Sync: Mark tenders whose closing date + time has passed as EXPIRED (Every 15 mins)
+    // 6. Real-time Status Sync: Mark tenders whose closing date + time has passed as EXPIRED (Every 15 mins)
     cron.schedule('*/15 * * * *', async () => {
       await retentionService.markExpiredTenders().catch(err => {
         logger.error(`[Scheduler] Real-time expiry check failed: ${err.message}`);
@@ -77,7 +88,18 @@ export class SchedulerService {
       timezone: 'Asia/Kolkata'
     });
 
-    logger.info('✅ [Scheduler] All 5 automated scraping slots, 3:00 AM purge cron & 15-min expiry watcher registered successfully.');
+    // 7. Evening Portal Parity Reconciliation (19:45 / 07:45 PM IST, Mon-Sat)
+    // Synchronizes cancellations & retender replacements that occurred during the business day
+    cron.schedule('45 19 * * 1-6', async () => {
+      logger.info('[Scheduler] ⏰ Running evening 07:45 PM Portal Parity Reconciliation...');
+      await reconciliationService.reconcileActiveTenders('CRON_SCHEDULE_0745PM').catch(err => {
+        logger.error(`[Scheduler] 07:45 PM reconciliation failed: ${err.message}`);
+      });
+    }, {
+      timezone: 'Asia/Kolkata'
+    });
+
+    logger.info('✅ [Scheduler] Office-hours polling, evening sweep, doc recovery, parity reconciliation & 03:00 AM purge crons registered successfully.');
   }
 
   /**
@@ -111,11 +133,19 @@ export class SchedulerService {
         return;
       }
 
-      logger.info(`[Scheduler] Admin permission verified. Dispatching sync job to TenderQueue for ${slotLabel}...`);
+      const nowIST = new Date().toLocaleTimeString('en-IN', { 
+        timeZone: 'Asia/Kolkata', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      const activeLabel = `${slotLabel} @ ${nowIST} IST`;
+
+      logger.info(`[Scheduler] Admin permission verified. Dispatching sync job to TenderQueue for ${activeLabel}...`);
       
       await tenderQueue.add('sync-latest-tenders', {
         triggeredBy: 'CRON_SCHEDULE',
-        slotLabel,
+        slotLabel: activeLabel,
+        limit: Infinity,
         initiatedAt: new Date().toISOString(),
       });
 
@@ -128,7 +158,7 @@ export class SchedulerService {
       await SystemLog.create({
         level: 'INFO',
         source: 'CRON',
-        message: `Automated data ingestion triggered successfully for ${slotLabel}.`,
+        message: `Automated data ingestion triggered successfully for ${activeLabel}.`,
       }).catch(() => {});
 
     } catch (err) {
@@ -139,6 +169,28 @@ export class SchedulerService {
         message: `Failed to dispatch scheduled sync for ${slotLabel}: ${err.message}`,
         stack: err.stack,
       }).catch(() => {});
+    }
+  }
+
+  /**
+   * Triggers scheduled 8:00 PM recovery of tenders whose download window opened today
+   */
+  async triggerDocumentRecovery() {
+    try {
+      const config = await CronConfig.findOne({ configKey: 'GLOBAL_CRON_SETTINGS' });
+      if (config && !config.isAutomatedSyncEnabled) {
+        logger.warn('[Scheduler] Document recovery skipped (Automated scraping is disabled in Admin Settings).');
+        return;
+      }
+
+      logger.info('[Scheduler] Dispatching scheduled retry-missing-pdfs job to TenderQueue...');
+      await tenderQueue.add('retry-missing-pdfs', {
+        triggeredBy: 'CRON_SCHEDULE_08PM',
+        slotLabel: '08:00 PM Document Recovery Sweep',
+        initiatedAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      logger.error(`[Scheduler] Failed to trigger document recovery: ${err.message}`);
     }
   }
 
@@ -253,11 +305,17 @@ export class SchedulerService {
       await CronConfig.create({
         configKey: 'GLOBAL_CRON_SETTINGS',
         isAutomatedSyncEnabled: true,
-        scheduledSlots: ['09:00', '10:00', '13:00', '15:00', '18:30'],
+        scheduleMode: 'POLLING_30_MIN',
+        scheduledSlots: ['Every 30m (09:05-19:05 IST Mon-Sat)', '19:15 Evening Catchup', '20:00 Doc Recovery'],
         isArchivePurgeEnabled: true,
         archiveRetentionDays: 30,
       });
       logger.info('[Scheduler] Created default CronConfig settings document.');
+    } else if (!existing.scheduleMode || (Array.isArray(existing.scheduledSlots) && existing.scheduledSlots.includes('09:00'))) {
+      existing.scheduleMode = 'POLLING_30_MIN';
+      existing.scheduledSlots = ['Every 30m (09:05-19:05 IST Mon-Sat)', '19:15 Evening Catchup', '20:00 Doc Recovery'];
+      await existing.save();
+      logger.info('[Scheduler] Updated existing CronConfig settings document to 30-min office-hours configuration.');
     }
   }
 }

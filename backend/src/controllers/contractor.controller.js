@@ -14,44 +14,32 @@ import User from '../models/User.js';
  */
 const getOrCreateContractorProfile = async (userId) => {
   if (!userId) {
-    let fallback = await ContractorProfile.findOne({ userId: null });
-    if (!fallback) {
-      fallback = await ContractorProfile.create({
-        name: 'Guest Contractor',
-        contractorId: 'NIT-GUEST',
-        jurisdiction: 'Jammu & Kashmir / North Zone',
-        affiliation: 'NIT Srinagar, J&K',
-        divisionBadge: 'J&K Public Works Division',
-        accountAuth: 'Unverified Guest',
-        registrationClass: 'Class A Works',
-        portalVerification: 'Active • L1 Compliant',
-        status: 'Active',
-        preferences: {
-          targetSectors: [],
-          preferredLocations: [],
-          minTenderValue: 0,
-          preferEmdExemption: false,
-          isConfigured: false,
-        },
-        savedTenders: [],
-      });
-    }
-    return fallback;
+    return {
+      name: 'Guest Contractor',
+      contractorId: 'NIT-GUEST',
+      jurisdiction: 'Jammu & Kashmir / North Zone',
+      affiliation: 'NIT Srinagar, J&K',
+      divisionBadge: 'J&K Public Works Division',
+      accountAuth: 'Unverified Guest',
+      registrationClass: 'Class A Works',
+      portalVerification: 'Active • L1 Compliant',
+      status: 'Active',
+      preferences: {
+        targetSectors: [],
+        preferredLocations: [],
+        minTenderValue: 0,
+        preferEmdExemption: false,
+        isConfigured: false,
+      },
+      savedTenders: [],
+    };
   }
 
   // 1. Search for profile already bound to this user
   let profile = await ContractorProfile.findOne({ userId });
   if (profile) return profile;
 
-  // 2. Check for an unbound legacy profile to claim
-  const unlinkedLegacy = await ContractorProfile.findOne({ userId: null });
-  if (unlinkedLegacy) {
-    unlinkedLegacy.userId = userId;
-    await unlinkedLegacy.save();
-    return unlinkedLegacy;
-  }
-
-  // 3. Create a personalized contractor profile for this user
+  // 2. Create a personalized contractor profile for this user
   const user = await User.findById(userId);
   profile = await ContractorProfile.create({
     userId,
@@ -97,37 +85,41 @@ export const getContractorProfile = async (req, res, next) => {
 
 /**
  * Update contractor credentials in MongoDB for the active contractor.
+ * Mass-assignment safe: only whitelisted profile fields can be modified by contractors.
+ * Privileged verification and status fields require administrative authorization.
  * @route PUT /api/v1/contractor/profile
  */
 export const updateContractorProfile = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required to update contractor profile.' });
+    }
+
     const {
       name,
-      contractorId,
       jurisdiction,
       affiliation,
       divisionBadge,
-      accountAuth,
-      registrationClass,
-      portalVerification,
-      status,
     } = req.body;
 
     const updateFields = {};
-    if (name !== undefined) updateFields.name = name;
-    if (contractorId !== undefined) updateFields.contractorId = contractorId;
-    if (jurisdiction !== undefined) updateFields.jurisdiction = jurisdiction;
-    if (affiliation !== undefined) updateFields.affiliation = affiliation;
-    if (divisionBadge !== undefined) updateFields.divisionBadge = divisionBadge;
-    if (accountAuth !== undefined) updateFields.accountAuth = accountAuth;
-    if (registrationClass !== undefined) updateFields.registrationClass = registrationClass;
-    if (portalVerification !== undefined) updateFields.portalVerification = portalVerification;
-    if (status !== undefined) updateFields.status = status;
+    if (name !== undefined) updateFields.name = String(name).trim();
+    if (jurisdiction !== undefined) updateFields.jurisdiction = String(jurisdiction).trim();
+    if (affiliation !== undefined) updateFields.affiliation = String(affiliation).trim();
+    if (divisionBadge !== undefined) updateFields.divisionBadge = String(divisionBadge).trim();
 
-    const query = userId ? { userId } : { userId: null };
+    // Privileged fields strictly restricted to super admin / admin
+    if (req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'admin') {
+      if (req.body.contractorId !== undefined) updateFields.contractorId = String(req.body.contractorId).trim();
+      if (req.body.accountAuth !== undefined) updateFields.accountAuth = String(req.body.accountAuth).trim();
+      if (req.body.registrationClass !== undefined) updateFields.registrationClass = String(req.body.registrationClass).trim();
+      if (req.body.portalVerification !== undefined) updateFields.portalVerification = String(req.body.portalVerification).trim();
+      if (req.body.status !== undefined) updateFields.status = String(req.body.status).trim();
+    }
+
     const updatedProfile = await ContractorProfile.findOneAndUpdate(
-      query,
+      { userId },
       { $set: updateFields },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
@@ -167,6 +159,10 @@ export const getContractorPreferences = async (req, res, next) => {
 export const updateContractorPreferences = async (req, res, next) => {
   try {
     const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required to update contractor preferences.' });
+    }
+
     const {
       targetSectors,
       preferredLocations,
@@ -178,14 +174,13 @@ export const updateContractorPreferences = async (req, res, next) => {
     const prefUpdates = {
       isConfigured: Boolean(isConfigured),
     };
-    if (targetSectors !== undefined) prefUpdates.targetSectors = targetSectors;
-    if (preferredLocations !== undefined) prefUpdates.preferredLocations = preferredLocations;
-    if (minTenderValue !== undefined) prefUpdates.minTenderValue = Number(minTenderValue) || 0;
+    if (Array.isArray(targetSectors)) prefUpdates.targetSectors = targetSectors.map((s) => String(s).trim()).filter(Boolean);
+    if (Array.isArray(preferredLocations)) prefUpdates.preferredLocations = preferredLocations.map((l) => String(l).trim()).filter(Boolean);
+    if (minTenderValue !== undefined) prefUpdates.minTenderValue = Math.max(0, Number(minTenderValue) || 0);
     if (preferEmdExemption !== undefined) prefUpdates.preferEmdExemption = Boolean(preferEmdExemption);
 
-    const query = userId ? { userId } : { userId: null };
     const updatedProfile = await ContractorProfile.findOneAndUpdate(
-      query,
+      { userId },
       { $set: { preferences: prefUpdates } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );

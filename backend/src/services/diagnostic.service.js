@@ -101,6 +101,7 @@ export class DiagnosticService {
     const [
       totalTenders,
       activeTenders,
+      cancelledTenders,
       archivedTenders,
       expiredTenders,
       expiredArchivedTenders,
@@ -110,7 +111,8 @@ export class DiagnosticService {
       cronConfig
     ] = await Promise.all([
       Tender.countDocuments(),
-      Tender.countDocuments({ status: 'ACTIVE', closingDate: { $gte: now } }),
+      Tender.countDocuments({ status: 'ACTIVE', isDelisted: { $ne: true }, closingDate: { $gte: now } }),
+      Tender.countDocuments({ $or: [{ status: 'CANCELLED' }, { isDelisted: true }] }),
       Tender.countDocuments({ status: 'ARCHIVED' }),
       Tender.countDocuments({ $or: [{ status: 'EXPIRED' }, { closingDate: { $lt: now } }] }),
       Tender.countDocuments({ status: 'ARCHIVED', closingDate: { $lt: cutoff30Days } }),
@@ -124,6 +126,7 @@ export class DiagnosticService {
       tenders: {
         total: totalTenders,
         active: activeTenders,
+        cancelled: cancelledTenders,
         archived: archivedTenders,
         expired: expiredTenders,
         expiredArchivedEligibleForPurge: expiredArchivedTenders,

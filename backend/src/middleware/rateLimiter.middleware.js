@@ -51,3 +51,15 @@ export const otpVerifyLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
 });
+
+export const aiAnalyzeLimiter = rateLimit({
+  store: new RedisStore({
+    sendCommand: (...args) => redis.call(...args),
+    prefix: 'rl-ai-analyze:',
+  }),
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 10, // Max 10 AI analyze requests per 15 minutes
+  message: { error: 'AI analysis rate limit exceeded. Please wait a few minutes before requesting more analyses.' },
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+});

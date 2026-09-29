@@ -31,14 +31,17 @@ export const getTenders = async (req, res, next) => {
       sortBy = 'arrival' // 'arrival' | 'closingAsc' | 'closingDesc' | 'valueDesc' | 'valueAsc'
     } = req.query;
     
-    // Helper to safely escape regex special characters
-    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Helper to safely escape regex special characters and prevent ReDoS / injection
+    const escapeRegex = (str) => {
+      if (typeof str !== 'string') return '';
+      return str.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    };
 
     // Base filter conditions matching textual criteria (shared by active/archived counts)
     const baseQuery = {};
 
     // 2. Specific Category Filter (Matches productCategory or tenderCategory)
-    if (category) {
+    if (category && typeof category === 'string' && category.trim()) {
       const escapedCategory = escapeRegex(category);
       baseQuery.$or = [
         { productCategory: { $regex: escapedCategory, $options: 'i' } },
@@ -111,16 +114,36 @@ export const getTenders = async (req, res, next) => {
 
     const now = new Date();
 
+    const activeFilter = {
+      status: 'ACTIVE',
+      isDelisted: { $ne: true },
+      closingDate: { $gte: now }
+    };
+
     // Compute live counts for tabs (Latest / Active vs. Archived / Expired)
-    const activeCount = await Tender.countDocuments({ ...baseQuery, closingDate: { $gte: now } });
-    const archivedCount = await Tender.countDocuments({ ...baseQuery, closingDate: { $lt: now } });
+    const activeCount = await Tender.countDocuments({ ...baseQuery, ...activeFilter });
+    const archivedCount = await Tender.countDocuments({ 
+      ...baseQuery, 
+      $or: [
+        { closingDate: { $lt: now } },
+        { status: { $in: ['EXPIRED', 'ARCHIVED'] } }
+      ]
+    });
 
     // 5. Build final query with status and closing date criteria
     const query = { ...baseQuery };
 
     if (status === 'archived') {
       // Archived tenders are those that have already expired
-      query.closingDate = { $lt: now };
+      query.$or = [
+        { closingDate: { $lt: now } },
+        { status: { $in: ['EXPIRED', 'ARCHIVED'] } }
+      ];
+    } else if (status === 'cancelled') {
+      query.$or = [
+        { status: 'CANCELLED' },
+        { isDelisted: true }
+      ];
     } else if (status === 'all') {
       // No automatic closingDate restriction
       if (closingDays) {
@@ -133,17 +156,14 @@ export const getTenders = async (req, res, next) => {
       }
     } else {
       // Default: 'active' (latest tenders currently open for bidding)
+      Object.assign(query, activeFilter);
       if (closingDays) {
         const days = parseInt(closingDays, 10);
         if (!isNaN(days)) {
           const targetDate = new Date();
           targetDate.setDate(targetDate.getDate() + days);
           query.closingDate = { $gte: now, $lte: targetDate };
-        } else {
-          query.closingDate = { $gte: now };
         }
-      } else {
-        query.closingDate = { $gte: now };
       }
     }
 
@@ -164,11 +184,14 @@ export const getTenders = async (req, res, next) => {
       sortConfig = { publishedDate: -1, createdAt: -1, _id: -1 };
     }
 
-    // 7. Execute Database Query
+    // 7. Execute Database Query with Enforced Limits
+    const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 100);
+    const safePage = Math.max(1, parseInt(page, 10) || 1);
+
     const tenders = await Tender.find(query)
       .sort(sortConfig)
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+      .skip((safePage - 1) * safeLimit)
+      .limit(safeLimit);
 
     // Get the total count of documents matching the active query for frontend pagination controls
     const total = await Tender.countDocuments(query);
@@ -178,8 +201,8 @@ export const getTenders = async (req, res, next) => {
       data: tenders,
       meta: { 
         total, 
-        page: Number(page), 
-        limit: Number(limit),
+        page: safePage, 
+        limit: safeLimit,
         activeCount,
         archivedCount
       }
@@ -272,24 +295,29 @@ export const triggerAiAnalysis = async (req, res, next) => {
 export const getTenderStats = async (req, res, next) => {
   try {
     const now = new Date();
+    const activeMatch = {
+      status: 'ACTIVE',
+      isDelisted: { $ne: true },
+      closingDate: { $gte: now }
+    };
 
     // 1. Total active tenders count
-    const activeTendersCount = await Tender.countDocuments({ closingDate: { $gte: now } });
+    const activeTendersCount = await Tender.countDocuments(activeMatch);
 
     // 2. Total unique issuing authorities based on the organisationChain field for active tenders
-    const authorities = await Tender.distinct('organisationChain', { closingDate: { $gte: now } });
+    const authorities = await Tender.distinct('organisationChain', activeMatch);
     const authoritiesCount = authorities.length;
 
     // 3. Total monetary value pipeline of active tenders
     const valueAggregation = await Tender.aggregate([
-      { $match: { closingDate: { $gte: now } } },
+      { $match: activeMatch },
       { $group: { _id: null, totalValue: { $sum: "$estimatedValue" } } } 
     ]);
     const totalValue = valueAggregation.length > 0 ? valueAggregation[0].totalValue : 0;
 
     // 4. Real Domain / Product category breakdown for active tenders
     const domainBreakdown = await Tender.aggregate([
-      { $match: { closingDate: { $gte: now }, productCategory: { $exists: true, $ne: null, $ne: '' } } },
+      { $match: { ...activeMatch, productCategory: { $exists: true, $ne: null, $ne: '' } } },
       {
         $group: {
           _id: "$productCategory",
@@ -303,7 +331,7 @@ export const getTenderStats = async (req, res, next) => {
 
     // 5. Broad Categories (Works, Services, Goods) for active tenders
     const categoryBreakdown = await Tender.aggregate([
-      { $match: { closingDate: { $gte: now }, tenderCategory: { $exists: true, $ne: null, $ne: '' } } },
+      { $match: { ...activeMatch, tenderCategory: { $exists: true, $ne: null, $ne: '' } } },
       {
         $group: {
           _id: "$tenderCategory",
@@ -316,7 +344,7 @@ export const getTenderStats = async (req, res, next) => {
 
     // 5b. Department / Organization breakdown for active tenders
     const departmentBreakdown = await Tender.aggregate([
-      { $match: { closingDate: { $gte: now }, organisationChain: { $exists: true, $ne: null, $ne: '' } } },
+      { $match: { ...activeMatch, organisationChain: { $exists: true, $ne: null, $ne: '' } } },
       {
         $group: {
           _id: "$organisationChain",
@@ -330,7 +358,7 @@ export const getTenderStats = async (req, res, next) => {
 
     // 6. Latest 4 active tenders for real live showcase
     const latestTenders = await Tender.find(
-      { closingDate: { $gte: now } },
+      activeMatch,
       'title sourceTenderId tenderCategory productCategory estimatedValue organisationChain closingDate publishedDate location'
     )
       .sort({ publishedDate: -1, createdAt: -1 })

@@ -16,6 +16,8 @@ import contractorRoutes from './routes/contractor.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import { globalErrorHandler } from './middleware/errorHandler.middleware.js';
 
+import { apiLimiter } from './middleware/rateLimiter.middleware.js';
+
 const app = express();
 const logger = pino({
   transport: env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
@@ -30,7 +32,11 @@ const configuredOrigins = env.CORS_ORIGIN
   ? env.CORS_ORIGIN.split(',').map((o) => o.trim()) 
   : [];
 
-const defaultAllowedOrigins = [
+if (env.FRONTEND_URL && !configuredOrigins.includes(env.FRONTEND_URL)) {
+  configuredOrigins.push(env.FRONTEND_URL.trim());
+}
+
+const defaultDevOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
@@ -39,21 +45,28 @@ const defaultAllowedOrigins = [
   'http://127.0.0.1:5174',
 ];
 
-const allowedOrigins = [...defaultAllowedOrigins, ...configuredOrigins].filter(Boolean);
+const allowedOrigins = [
+  ...(env.NODE_ENV !== 'production' ? defaultDevOrigins : []),
+  ...configuredOrigins
+].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    // Allow requests with no origin (mobile apps, server-to-server, curl)
     if (!origin) return callback(null, true);
-    if (
-      allowedOrigins.includes(origin) ||
+
+    const isExplicitlyAllowed = allowedOrigins.includes(origin);
+    const isDevLocalhost = env.NODE_ENV !== 'production' && (
       /^http:\/\/localhost:\d+$/.test(origin) ||
-      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
-      /\.onrender\.com$/.test(origin)
-    ) {
+      /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+    );
+
+    if (isExplicitlyAllowed || isDevLocalhost) {
       return callback(null, true);
     }
-    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+
+    // Cleanly reject unauthorized origins without throwing 500 exceptions
+    return callback(null, false);
   },
   credentials: true, // Required for httpOnly cookies
 }));
@@ -61,6 +74,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));
+
+// Apply rate limiting to all /api/ endpoints to prevent DoS attacks
+app.use('/api/', apiLimiter);
 
 // 2. Base Routes
 app.get('/health', (req, res) => {

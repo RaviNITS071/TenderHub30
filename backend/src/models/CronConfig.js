@@ -17,10 +17,16 @@ const cronConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  // Ingestion Mode: 30-min adaptive office-hours polling vs custom slots
+  scheduleMode: {
+    type: String,
+    enum: ['POLLING_30_MIN', 'CUSTOM_SLOTS'],
+    default: 'POLLING_30_MIN',
+  },
   // Designated automated scraping times in 24-hr format (IST)
   scheduledSlots: {
     type: [String],
-    default: ['09:00', '10:00', '13:00', '15:00', '18:30'],
+    default: ['Every 30m (09:05-19:05 IST Mon-Sat)', '19:15 Evening Catchup', '20:00 Doc Recovery'],
   },
   // Enable automated 30-day archive deletion
   isArchivePurgeEnabled: {

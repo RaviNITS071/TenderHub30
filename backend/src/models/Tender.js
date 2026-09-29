@@ -153,6 +153,9 @@ const tenderSchema = new mongoose.Schema({
   invitingAuthorityAddress: { type: String },
 
   status: { type: String, default: 'ACTIVE', index: true },
+  isDelisted: { type: Boolean, default: false, index: true },
+  cancelledAt: { type: Date, index: true },
+  delistReason: { type: String },
   archivedAt: { type: Date, index: true }
 }, { timestamps: true });
 
@@ -160,6 +163,7 @@ const tenderSchema = new mongoose.Schema({
 tenderSchema.index({ sourcePortal: 1, sourceTenderId: 1 }, { unique: true });
 tenderSchema.index({ departmentCode: 1, closingDate: 1 });
 tenderSchema.index({ organisationChain: 1, closingDate: 1 });
+tenderSchema.index({ status: 1, isDelisted: 1, closingDate: 1 });
 tenderSchema.index({ status: 1, closingDate: 1 });
 tenderSchema.index({ pdfFetchStatus: 1, closingDate: 1 });
 tenderSchema.index({ publishedDate: -1, createdAt: -1 });

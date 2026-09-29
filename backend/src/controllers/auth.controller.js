@@ -355,15 +355,16 @@ export const googleCallback = async (req, res, next) => {
       return res.redirect(`${frontendRedirect}/login?error=${encodeURIComponent(error || 'google_cancelled')}`);
     }
 
-    let mode = 'login';
-    if (state) {
-      const storedMode = await redis.get(`oauth_state:${state}`);
-      if (!storedMode) {
-        return res.redirect(`${frontendRedirect}/login?error=invalid_oauth_state`);
-      }
-      mode = storedMode;
-      await redis.del(`oauth_state:${state}`);
+    if (!state) {
+      return res.redirect(`${frontendRedirect}/login?error=missing_oauth_state`);
     }
+
+    const storedMode = await redis.get(`oauth_state:${state}`);
+    if (!storedMode) {
+      return res.redirect(`${frontendRedirect}/login?error=invalid_oauth_state`);
+    }
+    const mode = storedMode;
+    await redis.del(`oauth_state:${state}`);
 
     // 1. Exchange authorization code for tokens via Google OAuth Token Endpoint
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {

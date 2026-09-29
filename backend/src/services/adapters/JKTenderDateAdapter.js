@@ -28,6 +28,7 @@ import { parseISTDate, formatStandardTime, extractDateParts } from '../../utils/
 import { captchaService } from '../captcha.service.js';
 import Tender from '../../models/Tender.js';
 import PendingDocumentTender from '../../models/PendingDocumentTender.js';
+import { withDbRetry } from '../../config/db.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -311,11 +312,16 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
               totalTargetDateFound++;
               targetDateRowsOnThisPage++;
 
-              // Check if already in MongoDB with documents completed
-              const existing = await Tender.findOne({
-                sourcePortal: 'JK_TENDERS',
-                sourceTenderId: rowSummary.sourceTenderId
-              }).lean();
+              // Check if already in MongoDB with documents completed (with resilient network retry)
+              const existing = await withDbRetry(() =>
+                Tender.findOne({
+                  sourcePortal: 'JK_TENDERS',
+                  sourceTenderId: rowSummary.sourceTenderId
+                }).lean()
+              ).catch((dbErr) => {
+                logger.warn(`Could not verify existing tender status for ${rowSummary.sourceTenderId}: ${dbErr.message}`);
+                return null;
+              });
 
               const isComplete = existing && 
                 existing.pdfFetchStatus === 'COMPLETED' && 
@@ -435,17 +441,20 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
                     if (hasDocuments) {
                       totalWithDocuments++;
                       console.log(`      ✅ [Saved Multi-Tender Work] ${saved.sourceTenderId} (${saved.pdfUrls?.length || 0} PDFs, BOQ: ${saved.boqZipUrl ? 'Yes' : 'No'})`);
-                      await PendingDocumentTender.findOneAndUpdate(
-                        { sourceTenderId: saved.sourceTenderId },
-                        { $set: { status: 'DOWNLOADED', downloadedAt: new Date(), lastCheckedAt: new Date() } }
+                      await withDbRetry(() =>
+                        PendingDocumentTender.findOneAndUpdate(
+                          { sourceTenderId: saved.sourceTenderId },
+                          { $set: { status: 'DOWNLOADED', downloadedAt: new Date(), lastCheckedAt: new Date() } }
+                        )
                       ).catch(() => {});
                     } else {
                       totalWithoutDocuments++;
                       console.log(`      ⏳ [Pending Docs Multi-Tender Work] ${saved.sourceTenderId} -> pending_document_tenders`);
                       const isFuture = processedItem.documentDownloadStartDate && processedItem.documentDownloadStartDate > new Date();
-                      await PendingDocumentTender.findOneAndUpdate(
-                        { sourceTenderId: saved.sourceTenderId },
-                        {
+                      await withDbRetry(() =>
+                        PendingDocumentTender.findOneAndUpdate(
+                          { sourceTenderId: saved.sourceTenderId },
+                          {
                           $set: {
                             sourcePortal: 'JK_TENDERS',
                             sourceTenderId: saved.sourceTenderId,
@@ -478,7 +487,8 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
                           $inc: { attemptCount: 1 }
                         },
                         { upsert: true, new: true }
-                      ).catch(() => {});
+                      )
+                    ).catch(() => {});
                     }
 
                     if (options.onProgress) {
@@ -518,9 +528,11 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
                     console.log(`      📄 PDFs:      ${saved.pdfUrls?.length || 0} secured`);
                     console.log(`      📦 BOQ:       ${saved.boqZipUrl ? 'Secured ✅' : 'None / Not Released'}`);
 
-                    await PendingDocumentTender.findOneAndUpdate(
-                      { sourceTenderId: saved.sourceTenderId },
-                      { $set: { status: 'DOWNLOADED', downloadedAt: new Date(), lastCheckedAt: new Date() } }
+                    await withDbRetry(() =>
+                      PendingDocumentTender.findOneAndUpdate(
+                        { sourceTenderId: saved.sourceTenderId },
+                        { $set: { status: 'DOWNLOADED', downloadedAt: new Date(), lastCheckedAt: new Date() } }
+                      )
                     ).catch(() => {});
                   } else {
                     totalWithoutDocuments++;
@@ -530,9 +542,10 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
                     console.log(`      ℹ️ Reason:              ${docReason}`);
 
                     const isFuture = processedItem.documentDownloadStartDate && processedItem.documentDownloadStartDate > new Date();
-                    await PendingDocumentTender.findOneAndUpdate(
-                      { sourceTenderId: saved.sourceTenderId },
-                      {
+                    await withDbRetry(() =>
+                      PendingDocumentTender.findOneAndUpdate(
+                        { sourceTenderId: saved.sourceTenderId },
+                        {
                         $set: {
                           sourcePortal: 'JK_TENDERS',
                           sourceTenderId: saved.sourceTenderId,
@@ -565,7 +578,8 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
                         $inc: { attemptCount: 1 }
                       },
                       { upsert: true, new: true }
-                    ).catch(() => {});
+                    )
+                  ).catch(() => {});
                   }
 
                   if (options.onProgress) {
@@ -1429,28 +1443,32 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
       updatedAt: new Date()
     };
 
-    // 1. Upsert in MongoDB Atlas
-    const saved = await Tender.findOneAndUpdate(
-      { sourcePortal: 'JK_TENDERS', sourceTenderId: item.sourceTenderId },
-      { $set: docToSave },
-      { upsert: true, returnDocument: 'after' }
-    ).lean();
+    // 1. Upsert in MongoDB Atlas with resilient network retry
+    const saved = await withDbRetry(() =>
+      Tender.findOneAndUpdate(
+        { sourcePortal: 'JK_TENDERS', sourceTenderId: item.sourceTenderId },
+        { $set: docToSave },
+        { upsert: true, returnDocument: 'after' }
+      ).lean()
+    );
 
     // 1b. If part of a multi-tender group, link sibling tenders mutually
     if (saved.isMultiTender && saved.baseTenderId) {
-      await Tender.updateMany(
-        {
-          sourcePortal: 'JK_TENDERS',
-          $or: [
-            { baseTenderId: saved.baseTenderId },
-            { tenderReferenceNumber: saved.tenderReferenceNumber }
-          ],
-          sourceTenderId: { $ne: saved.sourceTenderId }
-        },
-        {
-          $set: { isMultiTender: true, baseTenderId: saved.baseTenderId },
-          $addToSet: { relatedTenderIds: saved.sourceTenderId }
-        }
+      await withDbRetry(() =>
+        Tender.updateMany(
+          {
+            sourcePortal: 'JK_TENDERS',
+            $or: [
+              { baseTenderId: saved.baseTenderId },
+              { tenderReferenceNumber: saved.tenderReferenceNumber }
+            ],
+            sourceTenderId: { $ne: saved.sourceTenderId }
+          },
+          {
+            $set: { isMultiTender: true, baseTenderId: saved.baseTenderId },
+            $addToSet: { relatedTenderIds: saved.sourceTenderId }
+          }
+        )
       ).catch(() => {});
     }
 

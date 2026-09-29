@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Landmark, Key, ArrowRight, Loader2, AlertCircle, ShieldCheck, BadgeCheck } from 'lucide-react';
-import { adminApi, setStoredAdminKey } from '../services/api';
+import { Landmark, Key, Mail, ArrowRight, Loader2, AlertCircle, ShieldCheck, BadgeCheck } from 'lucide-react';
+import { adminApi, setStoredAdminCredentials, getStoredAdminEmail } from '../services/api';
 
 export function AdminLogin({ onAuthenticated }) {
+  const [emailInput, setEmailInput] = useState(getStoredAdminEmail() || '');
   const [keyInput, setKeyInput] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -10,7 +11,15 @@ export function AdminLogin({ onAuthenticated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!keyInput.trim()) {
+    const cleanEmail = emailInput.trim().toLowerCase();
+    const cleanKey = keyInput.trim();
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setError('Please enter a valid authorized administrator email address.');
+      return;
+    }
+
+    if (!cleanKey) {
       setError('Please enter your administrative access key.');
       return;
     }
@@ -19,12 +28,12 @@ export function AdminLogin({ onAuthenticated }) {
     setError('');
 
     try {
-      await adminApi.verify(keyInput.trim());
-      setStoredAdminKey(keyInput.trim(), rememberMe);
+      await adminApi.verify(cleanKey, cleanEmail);
+      setStoredAdminCredentials(cleanKey, cleanEmail, rememberMe);
       onAuthenticated();
     } catch (err) {
       setError(err.message === 'UNAUTHORIZED_ADMIN' || err.status === 401 
-        ? 'Invalid administrative access key. Please verify your credentials.' 
+        ? 'Invalid administrative credentials. Please verify both your authorized email and secret key.' 
         : `Connection error: ${err.message}`);
     } finally {
       setIsLoading(false);
@@ -64,7 +73,7 @@ export function AdminLogin({ onAuthenticated }) {
           
           <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 pb-2 border-b border-slate-100 dark:border-slate-700/60">
             <ShieldCheck className="w-4 h-4 text-dalBlue dark:text-blue-400" />
-            <span>Administrator Passkey Verification</span>
+            <span>Dual-Factor Administrator Verification</span>
           </div>
 
           {error && (
@@ -77,6 +86,23 @@ export function AdminLogin({ onAuthenticated }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                Authorized Administrator Email <span className="text-chinarRed">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="admin@tenderhub.in"
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm font-sans text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-dalBlue dark:focus:border-blue-400 focus:ring-2 focus:ring-dalBlue/20 transition-all"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 Secret Admin Access Key <span className="text-chinarRed">*</span>
               </label>
               <div className="relative">
@@ -87,11 +113,10 @@ export function AdminLogin({ onAuthenticated }) {
                   onChange={(e) => setKeyInput(e.target.value)}
                   placeholder="Enter administrator key..."
                   className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm font-mono text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-dalBlue dark:focus:border-blue-400 focus:ring-2 focus:ring-dalBlue/20 transition-all"
-                  autoFocus
                 />
               </div>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 font-mono">
-                Configured in backend/.env (Default: tenderhub_admin_secret_2026)
+                Configured via ADMIN_SECRET_KEY in backend/.env
               </p>
             </div>
 

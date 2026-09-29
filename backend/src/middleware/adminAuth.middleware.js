@@ -2,23 +2,58 @@
  * @file backend/src/middleware/adminAuth.middleware.js
  * @description Secure administrative authorization middleware.
  * Validates either:
- * 1. Admin Secret Key via `x-admin-key` header (fast & secure server-to-server or admin dashboard)
- * 2. Admin JWT Token via `Authorization: Bearer <token>`
+ * 1. Dual-credential verification: Valid Admin Secret Key (`x-admin-key`) AND Authorized Admin Email (`x-admin-email`)
+ * 2. Administrative JWT Token via `Authorization: Bearer <token>`
  */
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
-const ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || 'tenderhub_admin_secret_2026';
+const ADMIN_SECRET = env.ADMIN_SECRET_KEY;
+const ADMIN_EMAIL = (env.ADMIN_EMAIL || '').toLowerCase().trim();
+
+/**
+ * Constant-time string equality check to prevent side-channel timing attacks.
+ */
+const safeCompare = (a, b) => {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+};
 
 export const adminAuth = (req, res, next) => {
   try {
     const adminKeyHeader = req.headers['x-admin-key'];
+    const adminEmailHeader = req.headers['x-admin-email'] || req.query.adminEmail;
     const authHeader = req.headers.authorization;
 
-    // Method 1: Static Admin Secret Key
-    if (adminKeyHeader && adminKeyHeader === ADMIN_SECRET) {
-      req.adminUser = { role: 'SUPER_ADMIN', authMethod: 'API_KEY' };
-      return next();
+    // Method 1: Dual Verification (Admin Secret Key + Authorized Admin Email)
+    if (adminKeyHeader) {
+      if (!adminEmailHeader) {
+        return res.status(401).json({
+          error: 'Missing Admin Email',
+          message: 'Both an authorized admin email (x-admin-email) and secret key (x-admin-key) are required.',
+        });
+      }
+
+      const isKeyValid = safeCompare(adminKeyHeader, ADMIN_SECRET);
+      const isEmailValid = safeCompare(adminEmailHeader.toLowerCase().trim(), ADMIN_EMAIL);
+
+      if (isKeyValid && isEmailValid) {
+        req.adminUser = {
+          email: ADMIN_EMAIL,
+          role: 'SUPER_ADMIN',
+          authMethod: 'KEY_AND_EMAIL',
+        };
+        return next();
+      }
+
+      return res.status(401).json({
+        error: 'Unauthorized Administrative Access',
+        message: 'Invalid administrative email or secret key. Access denied.',
+      });
     }
 
     // Method 2: Bearer JWT Token signed with ADMIN_SECRET or JWT_ACCESS_SECRET
@@ -28,13 +63,15 @@ export const adminAuth = (req, res, next) => {
       try {
         // Try verifying with ADMIN_SECRET first
         const decoded = jwt.verify(token, ADMIN_SECRET);
-        req.adminUser = decoded;
-        return next();
+        if (decoded.role === 'SUPER_ADMIN' || decoded.role === 'admin' || decoded.email === ADMIN_EMAIL) {
+          req.adminUser = decoded;
+          return next();
+        }
       } catch (err1) {
         // Fallback to JWT_ACCESS_SECRET
         try {
           const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
-          if (decoded.role === 'admin' || decoded.isAdmin) {
+          if ((decoded.role === 'admin' || decoded.isAdmin) && (!decoded.email || decoded.email.toLowerCase() === ADMIN_EMAIL)) {
             req.adminUser = decoded;
             return next();
           }
@@ -46,9 +83,10 @@ export const adminAuth = (req, res, next) => {
 
     return res.status(401).json({
       error: 'Unauthorized Administrative Access',
-      message: 'A valid admin secret key or administrative JWT token is required.',
+      message: 'Both a valid admin secret key (x-admin-key) and authorized admin email (x-admin-email), or an administrative JWT token, are required.',
     });
   } catch (err) {
     return res.status(500).json({ error: 'Admin authorization evaluation failed' });
   }
 };
+

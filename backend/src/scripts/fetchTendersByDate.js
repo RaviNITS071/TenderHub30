@@ -138,15 +138,21 @@ async function main() {
     console.log(`⏩ Skipped (Already Complete in DB):  ${summary.totalSkippedAlreadyComplete}`);
     console.log(`======================================================================\n`);
 
-    // Send Telegram finished notification (if configured)
+    // Send Telegram completed notification
     try {
-      await telegramService.sendCrawlFinished?.({
-        totalProcessed: summary.totalIngested,
-        pdfsSecured: summary.totalPdfsSecured,
-        missingPdfs: 0,
-        elapsedSeconds
+      await telegramService.sendCrawlCompleted({
+        mode: `TARGETED DATE (${dateConfig.displayString})`,
+        slotLabel: `Terminal Run (${dateConfig.displayString})`,
+        savedCount: summary.totalIngested || 0,
+        skippedCount: summary.totalSkippedAlreadyComplete || 0,
+        pdfCount: summary.totalPdfsSecured || 0,
+        boqCount: summary.totalBoqsSecured || 0,
+        missingPdfCount: summary.totalWithoutDocuments || 0,
+        durationMs: Date.now() - startTime
       });
-    } catch {}
+    } catch (tgErr) {
+      console.warn('Telegram completion dispatch warning:', tgErr.message);
+    }
 
   } catch (err) {
     console.error(`\n❌ Error running date ingestion:`, err);

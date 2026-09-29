@@ -9,6 +9,7 @@ import { diagnosticService } from '../services/diagnostic.service.js';
 import { schedulerService } from '../services/scheduler.service.js';
 import { backupService } from '../services/backup.service.js';
 import { retentionService } from '../services/retention.service.js';
+import { reconciliationService } from '../services/reconciliation.service.js';
 import { syncR2Buckets } from '../scripts/syncR2Mirror.js';
 import SystemLog from '../models/SystemLog.js';
 import SyncJob from '../models/SyncJob.js';
@@ -367,6 +368,26 @@ export const purgeExpiredTendersNow = async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: 'Expired tenders purge failed', message: err.message });
+  }
+};
+
+/**
+ * Manually trigger on-demand Portal Parity Reconciliation
+ */
+export const triggerPortalReconciliation = async (req, res) => {
+  try {
+    const adminUser = req.adminUser?.email || 'ADMIN_MANUAL';
+    const result = await reconciliationService.reconcileActiveTenders(adminUser);
+    if (result.error) {
+      return res.status(500).json({ error: 'Reconciliation failed', message: result.error });
+    }
+    return res.status(200).json({
+      success: true,
+      message: `Reconciliation complete. Portal active tenders: ${result.portalTotal}, Marked delisted: ${result.delistedCount}. Parity achieved.`,
+      result
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Portal reconciliation failed', message: err.message });
   }
 };
 

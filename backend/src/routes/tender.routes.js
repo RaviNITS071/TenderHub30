@@ -6,6 +6,8 @@ import {
   downloadTenderZip,
   triggerAiAnalysis
 } from '../controllers/tender.controller.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
+import { aiAnalyzeLimiter } from '../middleware/rateLimiter.middleware.js';
 
 const router = express.Router();
 
@@ -40,7 +42,8 @@ router.get('/:id', getTenderById);
 /**
  * @route POST /api/tenders/:id/analyze
  * Trigger the background AI worker to process a specific tender.
+ * Strictly protected by authentication and rate limiting.
  */
-router.post('/:id/analyze', triggerAiAnalysis);
+router.post('/:id/analyze', verifyToken, aiAnalyzeLimiter, triggerAiAnalysis);
 
 export default router;
