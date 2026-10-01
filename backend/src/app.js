@@ -55,11 +55,24 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, server-to-server, curl)
     if (!origin) return callback(null, true);
 
-    const isExplicitlyAllowed = allowedOrigins.includes(origin);
-    const isDevLocalhost = env.NODE_ENV !== 'production' && (
+    const isDevLocalhost = (
       /^http:\/\/localhost:\d+$/.test(origin) ||
       /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
     );
+
+    const isExplicitlyAllowed = allowedOrigins.some((allowed) => {
+      if (allowed === '*' || allowed === origin) return true;
+      if (allowed.startsWith('*.')) {
+        const rootDomain = allowed.slice(2);
+        try {
+          const originHost = new URL(origin).hostname;
+          return originHost === rootDomain || originHost.endsWith(`.${rootDomain}`);
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    });
 
     if (isExplicitlyAllowed || isDevLocalhost) {
       return callback(null, true);

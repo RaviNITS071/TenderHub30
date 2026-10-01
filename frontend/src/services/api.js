@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-let rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const PRODUCTION_RENDER_URL = 'https://tenderhub-backend-jofq.onrender.com/api/v1';
+const LOCAL_DEV_URL = 'http://localhost:8000/api/v1';
+
+let rawUrl = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? PRODUCTION_RENDER_URL : LOCAL_DEV_URL);
 rawUrl = rawUrl.trim().replace(/\/+$/, '');
 if (!rawUrl.endsWith('/api/v1')) {
   rawUrl = `${rawUrl}/api/v1`;
