@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TenderHub — UI/UX Product Design & Page Specification Brief</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    @page {
+      size: A4;
+      margin: 14mm 14mm 14mm 14mm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #1e293b;
+      background-color: #ffffff;
+      line-height: 1.5;
+      font-size: 11pt;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    /* Cover / Header */
+    .doc-header {
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 16px;
+      margin-bottom: 22px;
+    }
+
+    .badge-pill {
+      display: inline-block;
+      font-size: 8.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      margin-bottom: 8px;
+    }
+
+    .doc-title {
+      font-size: 23pt;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .doc-subtitle {
+      font-size: 12.5pt;
+      color: #475569;
+      font-weight: 500;
+      margin-bottom: 14px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 9pt;
+    }
+
+    .meta-item strong {
+      display: block;
+      color: #64748b;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .meta-item span {
+      color: #0f172a;
+      font-weight: 600;
+    }
+
+    /* Section Headings */
+    h2 {
+      font-size: 14pt;
+      font-weight: 800;
+      color: #0f172a;
+      border-left: 4px solid #0f172a;
+      padding-left: 10px;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      page-break-after: avoid;
+    }
+
+    h4 {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+
+    p {
+      margin-bottom: 8px;
+      color: #334155;
+      font-size: 9.8pt;
+      line-height: 1.5;
+    }
+
+    ul, ol {
+      margin-left: 20px;
+      margin-bottom: 10px;
+      font-size: 9.3pt;
+      color: #334155;
+    }
+
+    li {
+      margin-bottom: 3.5px;
+      line-height: 1.45;
+    }
+
+    code, .mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5pt;
+      background: #f1f5f9;
+      padding: 1px 4px;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+
+    /* Callouts */
+    .callout {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-left: 4px solid #0f172a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 12px 0;
+      font-size: 9.3pt;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 14px 0;
+      font-size: 8.8pt;
+      page-break-inside: avoid;
+    }
+
+    th {
+      background: #0f172a;
+      color: #ffffff;
+      text-align: left;
+      font-weight: 700;
+      font-size: 7.8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 7px 10px;
+      border: 1px solid #0f172a;
+    }
+
+    td {
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      color: #334155;
+      vertical-align: top;
+      line-height: 1.4;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    /* Page Breakdown Cards */
+    .page-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px 15px;
+      margin-bottom: 16px;
+      page-break-inside: avoid;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+
+    .page-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 7px;
+      margin-bottom: 9px;
+    }
+
+    .page-name {
+      font-size: 12pt;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .page-route {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8pt;
+      background: #f1f5f9;
+      color: #0f172a;
+      border: 1px solid #cbd5e1;
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-weight: 600;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .checklist {
+      list-style: none;
+      margin-left: 0;
+    }
+
+    .checklist li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 6px;
+    }
+
+    .checklist li::before {
+      content: "✔";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #0f172a;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Cover Header -->
+  <div class="doc-header">
+    <div class="badge-pill">UI/UX Product Handover Specification</div>
+    <h1 class="doc-title">TenderHub — Platform Architecture &amp; Page Details</h1>
+    <div class="doc-subtitle">Jammu &amp; Kashmir Government Tenders, Public Works &amp; Contractor Portal</div>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <strong>Document Type</strong>
+        <span>Feature &amp; Screen Specification</span>
+      </div>
+      <div class="meta-item">
+        <strong>Target Users</strong>
+        <span>Contractors (Class A–D), Engineers</span>
+      </div>
+      <div class="meta-item">
+        <strong>Design Freedom</strong>
+        <span>Theme, Colors &amp; Styling by UI Designer</span>
+      </div>
+      <div class="meta-item">
+        <strong>Total Core Pages</strong>
+        <span>8 Pages + Interactive Modals</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 1 -->
+  <h2>1. Executive Summary &amp; Platform Context</h2>
+  <p>
+    <strong>TenderHub</strong> is a unified, high-speed discovery and bidding management portal for civil, electrical, and infrastructure contractors across all 20 districts of Jammu &amp; Kashmir.
+  </p>
+  <p>
+    The platform aggregates public notices from the official e-procurement gazette (<code>jktenders.gov.in</code>) and solves the major usability issues contractors face on the government site:
+  </p>
+  <ul>
+    <li><strong>Short Session Logouts:</strong> Bidders get auto-logged out every 10 minutes on the official portal. TenderHub provides continuous browsing with persistent bookmarks.</li>
+    <li><strong>Unusable Mobile Experience:</strong> Government tables do not work on mobile phones. Contractors need a mobile-first UI for review on construction sites.</li>
+    <li><strong>Hidden Attachments:</strong> Bill of Quantities (BOQ) Excel sheets and technical drawings are nested inside complex menus. TenderHub surfaces them directly.</li>
+    <li><strong>Ambiguous Work Locations:</strong> TenderHub extracts specific project sites, tehsils, and districts, providing direct map navigation.</li>
+  </ul>
+  <div class="callout">
+    <div class="callout-title">Designer Note on Creative Freedom</div>
+    The UI/UX designer has <strong>complete creative freedom</strong> to choose the color theme, visual styling, brand aesthetics, and typography. The requirements below specify the functional purpose, content hierarchy, data fields, and user workflows for each screen.
+  </div>
+
+  <!-- Section 2 -->
+  <h2>2. Target User Personas &amp; Workflows</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 22%;">User Persona</th>
+        <th style="width: 28%;">Context &amp; Environment</th>
+        <th style="width: 25%;">Primary Goals</th>
+        <th style="width: 25%;">Critical Information Needed</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Class A &amp; B Civil Contractor</strong><br><em>(Roads, Bridges, Buildings)</em></td>
+        <td>Checks tenders on a smartphone or tablet while traveling between active project sites.</td>
+        <td>Identify high-value public works, evaluate transport logistics, and download tender notices.</td>
+        <td>• Total Tender Value in INR (₹)<br>• Exact Work Site Location &amp; Map<br>• Direct BOQ (.zip / .xls) download</td>
+      </tr>
+      <tr>
+        <td><strong>Electrical &amp; Maintenance Contractor</strong><br><em>(PDD, Jal Shakti, Supplies)</em></td>
+        <td>Submits bids on short-cycle tenders with tight 3 to 7-day deadlines.</td>
+        <td>Avoid missing urgent closing deadlines; check EMD deposits and fee exemptions.</td>
+        <td>• Submission Closing Date / Deadline<br>• EMD Amount &amp; Exemption status<br>• Filter by Department/Division</td>
+      </tr>
+      <tr>
+        <td><strong>Bidding &amp; Estimation Engineer</strong><br><em>(Engineering Consortia)</em></td>
+        <td>Prepares formal bids, technical covers, and BOQ cost estimates on desktop workstations.</td>
+        <td>Ensure 100% compliance with government eligibility and submission checklists.</td>
+        <td>• Mandatory Document Checklist<br>• Two-cover system (Technical/Financial)<br>• In-browser file previews</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 3 -->
+  <h2>3. Functional UI &amp; UX Requirements</h2>
+  <ul>
+    <li><strong>Outdoor Legibility:</strong> Contractors frequently read screens outdoors under direct sunlight. Ensure strong visual contrast, clear headings, and readable font weights.</li>
+    <li><strong>Tabular &amp; Financial Precision:</strong> Tender reference IDs, dates, and currency values in Indian Rupees (<code>₹</code>) must use clean tabular numerals or monospace styling for instant scanning.</li>
+    <li><strong>Touch Targets:</strong> All buttons, dropdowns, and filter pills must be touch-friendly on mobile screens (minimum 44×44px hit areas).</li>
+    <li><strong>Responsive Layouts:</strong> Full support for Mobile (375px+), Tablet (768px), and Desktop (1280px+).</li>
+    <li><strong>Light &amp; Dark Modes:</strong> Both clean high-contrast light mode and eye-friendly dark mode for evening/night work.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- Section 4 -->
+  <h2>4. Comprehensive Page-by-Page Specifications &amp; Content Details</h2>
+
+  <!-- Page 1 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 1: Homepage</div>
+      <div class="page-route">Route: /</div>
+    </div>
+    <p><strong>Screen Objective:</strong> The primary landing page. Must establish immediate trust, provide real-time procurement metrics, and offer an instant keyword search bar.</p>
+    
+    <h4>Content Blocks &amp; Elements:</h4>
+    <ul>
+      <li><strong>Official Identity Tagline:</strong> Badge stating <em>"Jammu &amp; Kashmir Public Works &amp; e-Procurement Directory"</em>.</li>
+      <li><strong>Hero Headline &amp; Subtitle:</strong> Clear statement about tracking public infrastructure, road macadamization, and civil contracts across all 20 districts.</li>
+      <li><strong>Hero Search Bar:</strong> Single-input search box with placeholder <em>"Search tender name, department, or district..."</em> and search button.</li>
+      <li><strong>Quick Search Tags:</strong> Clickable filter chips for popular queries (e.g., <code>Civil Works</code>, <code>Jal Shakti / PHE</code>, <code>PMGSY Roads</code>, <code>Electrical Works</code>, <code>Baramulla</code>, <code>Srinagar</code>, <code>Jammu</code>).</li>
+      <li><strong>Live Aggregated Metrics Display (4 Stats):</strong>
+        <ul>
+          <li>Active Tender Notices count (e.g., <em>29+ Active Notices</em>)</li>
+          <li>Total Estimated Value in INR (e.g., <em>₹ 3.01+ Crore</em>)</li>
+          <li>Active State Departments count (e.g., <em>13+ Departments</em>)</li>
+          <li>Regional Districts count (e.g., <em>All 20 Districts Covered</em>)</li>
+        </ul>
+      </li>
+      <li><strong>Active Departments &amp; Sectors Feed / Carousel:</strong> Moving ticker or grid showcasing departments, active notice counts, and estimated contract values. Clicking any item navigates directly to the filtered Directory.</li>
+      <li><strong>Recent Tender Announcements:</strong> Grid showing 3–4 of the freshest tenders with quick details (ID, Title, Value, Bid End Date).</li>
+      <li><strong>Value Proposition Section:</strong> 3 benefit cards explaining zero session timeouts, direct document downloads, and verified site locations.</li>
+      <li><strong>Contractor Call-to-Action (CTA):</strong> Banner prompting contractors to create a free account to save notices and receive alerts.</li>
+    </ul>
+  </div>
+
+  <!-- Page 2 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 2: Tender Notice Directory</div>
+      <div class="page-route">Route: /tenders</div>
+    </div>
+    <p><strong>Screen Objective:</strong> The daily search and filtering command center. Allows contractors to narrow down hundreds of notices using multiple criteria in seconds.</p>
+
+    <h4>Content Blocks &amp; Elements:</h4>
+    <ul>
+      <li><strong>Header Area:</strong> Page Title, total matching notice count, and a <em>"Reset All Filters"</em> action button.</li>
+      <li><strong>Notice Status Switcher:</strong> Tabs to toggle between <strong>Active Tenders</strong> (currently open for bidding) and <strong>Archived Tenders</strong> (past notices for price reference).</li>
+      <li><strong>Search &amp; Sort Bar:</strong> Keyword input + Sort dropdown (<em>Newest Published</em>, <em>Closing Soonest</em>, <em>Value: High to Low</em>, <em>Value: Low to High</em>).</li>
+      <li><strong>Multi-Dimensional Filters (Sidebar on Desktop, Filter Drawer on Mobile):</strong>
+        <ul>
+          <li><strong>Districts Filter:</strong> All 20 J&amp;K districts (Srinagar, Jammu, Baramulla, Anantnag, Pulwama, Kupwara, Budgam, etc.).</li>
+          <li><strong>Work Category Filter:</strong> Civil Works, Electrical Works, Water Equipments/Drilling, Health Supplies, Miscellaneous.</li>
+          <li><strong>Issuing Authority Filter:</strong> PWD, Jal Shakti / PHE, DC-PDD, Agriculture, Forest, Shrine Board, Sports Council, etc.</li>
+          <li><strong>Division/Wing Filter:</strong> Specific administrative circles (e.g., ED-Anantnag, CAD Pulwama, Directorate of Agriculture).</li>
+          <li><strong>Closing Deadline Filter:</strong> <em>Closing in 3 Days (Urgent)</em>, <em>7 Days</em>, <em>15 Days</em>, <em>30 Days</em>.</li>
+        </ul>
+      </li>
+      <li><strong>Tender Card Component (For Every Result Item):</strong>
+        <ul>
+          <li>Tender Reference Number and Portal Tender ID (selectable/copyable)</li>
+          <li>Tender Title (concise, high contrast)</li>
+          <li>Department hierarchy (e.g., <em>PWD &gt; R&amp;B Division</em>)</li>
+          <li>Estimated Contract Value in INR (e.g., <code>₹ 14.50 Lakh</code>)</li>
+          <li>EMD Amount &amp; Tender Document Fee</li>
+          <li>Work Location / District badge</li>
+          <li>Bid Submission Deadline (with urgency indicator for upcoming dates)</li>
+          <li>Action triggers: <strong>Save/Bookmark (Heart)</strong> and <strong>"View Details"</strong> button</li>
+        </ul>
+      </li>
+      <li><strong>Pagination &amp; Feedback:</strong> Numbered pagination controls, loading skeleton states, and an empty state card for <em>"No Tenders Found"</em>.</li>
+    </ul>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- Page 3 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 3: Tender Details Deep-Dive</div>
+      <div class="page-route">Route: /tenders/:id</div>
+    </div>
+    <p><strong>Screen Objective:</strong> The most crucial decision-making page. Provides complete technical, geographical, financial, and legal specifications for a single tender.</p>
+
+    <h4>Content Blocks &amp; Layout (2-Column Structure):</h4>
+    
+    <div style="margin-top: 6px; margin-bottom: 6px;">
+      <strong>Top Header &amp; Actions:</strong> Breadcrumbs, Back navigation, Bookmark button, and an <em>"Open Official Portal"</em> helper dialog button.
+    </div>
+
+    <div style="margin-bottom: 8px;">
+      <strong>Sibling Works Banner:</strong> For multi-work notices, a carousel of other works published under the same tender notice with individual values.
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px;">
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+        <h4 style="color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px;">Left Column (Main Technical Specifications)</h4>
+        <ul style="font-size: 8.5pt;">
+          <li><strong>Basic Details Table:</strong> Organisation Chain, Tender Reference Number, Tender ID, Tender Type, Form of Contract, Payment Mode, Technical Evaluation rules.</li>
+          <li><strong>Work Execution Location:</strong> Project Site text description, District/City, Pincode, Google Maps search link, Pre-bid meeting venue, and Bid Opening Office.</li>
+          <li><strong>Payment Instruments Table:</strong> S.No, Instrument Type (Demand Draft, CDR, FDR, Net Banking, RTGS).</li>
+          <li><strong>Covers Specification Table:</strong> Cover 1 (Fee/Technical .pdf), Cover 2 (Finance/BOQ .xls).</li>
+          <li><strong>Mandatory Documents Checklist Table:</strong> Required bidder documents (GST certificate, tax clearance, registration card, CDR receipt) with accepted file format.</li>
+          <li><strong>Work Scope &amp; Eligibility:</strong> Detailed work scope, contractor registration class required, contract period (in days), bid validity (in days).</li>
+          <li><strong>Tender Inviting Authority:</strong> Designation, executive engineer office address, and contact jurisdiction.</li>
+        </ul>
+      </div>
+
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px;">
+        <h4 style="color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px;">Right Column (Financials, Timeline &amp; Vault)</h4>
+        <ul style="font-size: 8.5pt;">
+          <li><strong>Tender Fee &amp; EMD Card:</strong>
+            <ul style="margin-left: 10px; margin-top: 2px;">
+              <li>Tender Fee amount, Payable To, Payable At, and Exemption status.</li>
+              <li>EMD Deposit amount, Payable To, Payable At, and Exemption status.</li>
+            </ul>
+          </li>
+          <li><strong>Critical Dates Timeline:</strong>
+            <ul style="margin-left: 10px; margin-top: 2px;">
+              <li>Published Date &amp; Time</li>
+              <li>Document Download Start &amp; End Date</li>
+              <li>Clarification Start &amp; End Date</li>
+              <li><strong>Bid Submission Start Date</strong></li>
+              <li><strong>Bid Submission Deadline</strong> (highlighted)</li>
+              <li>Bid Opening Date &amp; Time</li>
+            </ul>
+          </li>
+          <li><strong>Official Document Vault:</strong>
+            <ul style="margin-left: 10px; margin-top: 2px;">
+              <li><strong>Official NIT PDF:</strong> File name, file size (KB/MB), View in-browser button, and Download button.</li>
+              <li><strong>Work Item BOQ Package (.ZIP):</strong> Direct download for the complete official ZIP file.</li>
+              <li><strong>In-Browser ZIP Inspector:</strong> Allows contractors to preview files inside the ZIP (BOQ .xls, specifications, drawings) before downloading.</li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Page 4 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 4: Contractor Workspace &amp; Profile</div>
+      <div class="page-route">Route: /profile</div>
+    </div>
+    <p><strong>Screen Objective:</strong> The contractor's private workspace for tracking saved tenders, managing official business credentials, and configuring filter radar alerts.</p>
+
+    <h4>Content Blocks &amp; Elements:</h4>
+    <ul>
+      <li><strong>Contractor Profile Header Card:</strong> Company/Contractor Name, Initials Avatar, Verified Contractor badge, Contractor ID, Division Badge, and Total Saved Tenders count.</li>
+      <li><strong>Navigation Tabs:</strong>
+        <ul>
+          <li><strong>Tab 1: Saved Tenders:</strong> List of all bookmarked tender cards with quick unsave toggle and an empty state leading to the directory.</li>
+          <li><strong>Tab 2: Contractor Credentials (View &amp; Inline Edit):</strong>
+            <ul>
+              <li>Contractor / Business Entity Name</li>
+              <li>Registration Class: <code>Class A Works</code>, <code>Class B</code>, <code>Class C</code>, <code>Class D</code>, <code>Special Class</code>, <code>Electrical Class 1</code>, <code>Hot Mix Plant</code></li>
+              <li>Primary Operating Jurisdiction (District / Zone)</li>
+              <li>Division Affiliation &amp; Badge ID</li>
+            </ul>
+          </li>
+          <li><strong>Tab 3: Filter Preferences &amp; Radar Alerts:</strong>
+            <ul>
+              <li>Target Work Sectors (multi-select options)</li>
+              <li>Preferred Operating Districts (multi-select options)</li>
+              <li>Minimum Tender Value threshold input/slider</li>
+              <li>Prefer EMD Exemption only toggle</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- Page 5 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 5: Authentication &amp; Onboarding</div>
+      <div class="page-route">Route: /login &amp; /signup</div>
+    </div>
+    <p><strong>Screen Objective:</strong> Low-friction, high-trust authentication designed for contractors without complicated password rules.</p>
+    <ul>
+      <li><strong>Mode Toggle:</strong> Switch between <strong>Contractor Login</strong> (existing users) and <strong>New Registration</strong> (new contractors).</li>
+      <li><strong>Passwordless Email OTP Verification:</strong>
+        <ul>
+          <li>Step 1: User enters email address.</li>
+          <li>Step 2: 6-box individual numeric OTP inputs with 60-second cooldown timer &amp; resend button.</li>
+        </ul>
+      </li>
+      <li><strong>One-Click Google Authentication:</strong> Fast alternative login using Google.</li>
+      <li><strong>Contractor Onboarding Fields (Signup Mode):</strong> Optional collapsible fields to enter Company Name, Registration Class, and Operating District during account creation.</li>
+      <li><strong>Trust &amp; Security Assurance:</strong> Institutional note confirming encryption standards.</li>
+    </ul>
+  </div>
+
+  <!-- Page 6 -->
+  <div class="page-card">
+    <div class="page-card-header">
+      <div class="page-name">Page 6: Subscription &amp; Pricing</div>
+      <div class="page-route">Route: /pricing</div>
+    </div>
+    <p><strong>Screen Objective:</strong> Clear pricing plans for independent contractors, active bidding firms, and large infrastructure consortia.</p>
+    <ul>
+      <li><strong>3-Tier Subscription Matrix:</strong>
+        <ul>
+          <li><strong>Contractor Free (₹0 forever):</strong> Search all 20 districts, bookmark up to 10 notices, official portal search helper.</li>
+          <li><strong>Contractor Pro (₹2,499 / month) — [RECOMMENDED]:</strong> Everything in Free + Fast cloud PDF views, daily deadline alerts, specific site mapping, and Excel/CSV export.</li>
+          <li><strong>Enterprise Consortium (₹7,999 / month):</strong> Everything in Pro + REST API &amp; Webhooks, 10 team seats, dedicated account manager, SLA guaranteed data sync.</li>
+        </ul>
+      </li>
+      <li><strong>Contractor Billing FAQs:</strong> Answers regarding GST invoice generation, UPI/Net Banking support, and cancel-anytime policy.</li>
+    </ul>
+  </div>
+
+  <!-- Pages 7 & 8 -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+    <div class="page-card" style="margin-bottom: 0;">
+      <div class="page-card-header">
+        <div class="page-name" style="font-size: 11pt;">Page 7: Platform Architecture</div>
+        <div class="page-route">Route: /about</div>
+      </div>
+      <p style="font-size: 8.5pt;"><strong>Goal:</strong> Build institutional credibility with government boards &amp; engineering firms.</p>
+      <ul style="font-size: 8.5pt;">
+        <li>Platform origin &amp; transparency mission in J&amp;K.</li>
+        <li><strong>3 Operating Standards:</strong> Official Data Integrity, Edge Document Archiving, Work Site Proximity.</li>
+        <li>Engineering &amp; data synchronization guarantees.</li>
+      </ul>
+    </div>
+
+    <div class="page-card" style="margin-bottom: 0;">
+      <div class="page-card-header">
+        <div class="page-name" style="font-size: 11pt;">Page 8: Support &amp; Helpdesk</div>
+        <div class="page-route">Route: /contact</div>
+      </div>
+      <p style="font-size: 8.5pt;"><strong>Goal:</strong> Direct communication for contractor inquiries, missing document reports, and support.</p>
+      <ul style="font-size: 8.5pt;">
+        <li><strong>Physical Campus Address:</strong> NIT Hazratbal, Srinagar, J&amp;K 190006.</li>
+        <li><strong>Support Email:</strong> support@tenderhub.in</li>
+        <li><strong>Operational Hours:</strong> Mon–Sat, 09:30 AM – 06:00 PM IST</li>
+        <li><strong>Inquiry Form:</strong> Name, Email, Tender Reference Number, Message.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Section 5 -->
+  <h2>5. Key Interactive Modals</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Modal Name</th>
+        <th style="width: 25%;">Trigger Location</th>
+        <th style="width: 50%;">Content &amp; Interaction Requirements</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Official Portal Helper Modal</strong></td>
+        <td>On <code>/tenders/:id</code>: <em>"Open Official Portal"</em></td>
+        <td>
+          • Prominent, copyable <strong>Tender ID</strong> and <strong>Ref Number</strong> box with 1-click clipboard copy.<br>
+          • 3-step bidding instructions: 1. Copy Tender ID → 2. Open <code>jktenders.gov.in</code> link → 3. Paste ID and submit bid with DSC token.<br>
+          • Direct external link button to the official portal.
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Quick Filter Preferences Modal</strong></td>
+        <td>First-time homepage visit or <em>"Set Preferences"</em> in navbar</td>
+        <td>
+          • Fast setup wizard allowing contractors to pick primary districts and favorite sectors.<br>
+          • Instant local storage &amp; backend database synchronization.
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Section 6 -->
+  <h2>6. Deliverables Checklist for the UI/UX Designer</h2>
+  <ul class="checklist">
+    <li><strong>Complete Design System:</strong> Typography tokens, component library (Buttons, Inputs, Selects, Modals, Badges, Table Rows), and Icon set.</li>
+    <li><strong>Visual Identity &amp; Theme:</strong> Designer's chosen color palette (Primary, Secondary, Success, Urgency, Surfaces) in both Light &amp; Dark themes.</li>
+    <li><strong>Responsive Artboards:</strong> Mobile (375px–414px), Tablet (768px), and Desktop (1280px–1440px) for all 8 core screens.</li>
+    <li><strong>Interactive Flow Prototype:</strong> Primary journey from Homepage → Search Directory → Tender Details → Profile Workspace.</li>
+    <li><strong>All Interaction States:</strong> Default, Hover, Active, Focus, Loading (Skeletons), Empty States (No results), and Form Validation / Error states.</li>
+  </ul>
+
+  <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 8pt; color: #94a3b8; text-align: center;">
+    TenderHub Public Procurement Platform • Screen &amp; Content Specification Brief • Prepared for Product Design Team
+  </div>
+
+</body>
+</html>
