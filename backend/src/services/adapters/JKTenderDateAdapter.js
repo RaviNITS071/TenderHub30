@@ -295,6 +295,7 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
           console.log(`📋 Page ${orgPageNum}: ${tenderRows.length} tenders displayed. Scanning for date "${dateConfig.targetDatePrefix}"...`);
 
           let pageHasOlderThanTarget = false;
+          let pageHasNewerThanTarget = false;
           let targetDateRowsOnThisPage = 0;
 
           for (let t = 0; t < tenderRows.length && totalIngested < limit; t++) {
@@ -603,20 +604,28 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
             } else if (parsedPubDate && parsedPubDate < dateConfig.targetDateIST) {
               // Row date is strictly older than target date
               pageHasOlderThanTarget = true;
+            } else if (parsedPubDate && parsedPubDate > dateConfig.targetDateEndIST) {
+              // Row date is strictly newer than target date
+              pageHasNewerThanTarget = true;
             }
           }
 
           // EARLY-EXIT OPTIMIZATION:
-          // In NIC eProcurement, tenders are sorted newest-first.
-          // If we found older tenders on this page, and no tenders matching target date on this page,
-          // then all subsequent pages will only be even older. We can safely conclude this organisation!
-          if (pageHasOlderThanTarget && targetDateRowsOnThisPage === 0) {
-            console.log(`   🛑 Reached tenders older than ${dateConfig.displayString}. Concluding organisation "${org.orgName}".`);
+          // JK Portal lists tenders newest-first, but pages can be MIXED (some today, some yesterday).
+          // Only conclude this organisation when a page has:
+          //   - zero target-date rows (nothing ingested from this page), AND
+          //   - at least one older-than-target row (we've crossed the date boundary), AND
+          //   - no newer-than-target rows (we're not on a transition page at the top)
+          // This prevents premature exit on mixed-date pages.
+          if (pageHasOlderThanTarget && targetDateRowsOnThisPage === 0 && !pageHasNewerThanTarget) {
+            console.log(`   🛑 Page ${orgPageNum} has zero tenders from ${dateConfig.displayString} and older rows found. Concluding organisation "${org.orgName}".`);
             orgHasMore = false;
             break;
           }
 
           // Pagination within this organisation
+          // NOTE: We intentionally do NOT block pagination on pageHasOlderThanTarget alone,
+          // because a page may be mixed (today + yesterday). Continue until early-exit fires.
           const nextPg = orgPageNum + 1;
           const hasNextPage = await page.evaluate((target) => {
             const links = Array.from(document.querySelectorAll('a'));
@@ -625,7 +634,7 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
             return false;
           }, nextPg);
 
-          if (hasNextPage && totalIngested < limit && !pageHasOlderThanTarget) {
+          if (hasNextPage && totalIngested < limit) {
             orgPageNum++;
             await page.waitForSelector("table.list_table tr[id^='informal']", { timeout: 25000 }).catch(() => {});
             await this.humanDelay(page, 500, 900);

@@ -22,6 +22,10 @@ export class RetentionService {
   /**
    * Evaluates all tenders against current Indian Standard Time.
    * Marks status as 'EXPIRED' if current time is greater than closing date and time.
+   * 
+   * Safety guard: A tender is NEVER marked expired if its bidOpeningDate is still
+   * in the future. This prevents incorrect closingDate scrapes (e.g. Sep vs Oct month
+   * confusion) from archiving live tenders.
    */
   async markExpiredTenders() {
     const now = new Date();
@@ -32,7 +36,15 @@ export class RetentionService {
     const result = await Tender.updateMany(
       {
         closingDate: { $lt: now },
-        status: { $ne: 'EXPIRED' }
+        status: { $ne: 'EXPIRED' },
+        // Safety guard: never mark expired if bid opening date is still in the future
+        // A tender cannot be closed before bids are opened — if bidOpeningDate > now,
+        // the closingDate is likely a scraping error (e.g. wrong month parsed)
+        $or: [
+          { bidOpeningDate: { $exists: false } },
+          { bidOpeningDate: null },
+          { bidOpeningDate: { $lte: now } }
+        ]
       },
       { $set: { status: 'EXPIRED' } }
     );
@@ -62,7 +74,15 @@ export class RetentionService {
 
     const filter = {
       $or: [
-        { closingDate: { $lt: now } },
+        { 
+          closingDate: { $lt: now },
+          // Safety guard: never purge if bid opening date is still in the future
+          $or: [
+            { bidOpeningDate: { $exists: false } },
+            { bidOpeningDate: null },
+            { bidOpeningDate: { $lte: now } }
+          ]
+        },
         { status: 'EXPIRED' }
       ]
     };
