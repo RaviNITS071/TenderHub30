@@ -30,7 +30,8 @@
     "report:pdf": "node src/scripts/generateCrawlReportPdf.js",
     "manual:adapters": "node src/scripts/generateAdaptersGuidePdf.js",
     "manuals:all": "node src/scripts/generateDisasterRecoveryPdf.js && node src/scripts/generateDeploymentPdf.js && node src/scripts/generateFutureConfigPdf.js && node src/scripts/generateCrawlReportPdf.js && node src/scripts/generateAdaptersGuidePdf.js",
-    "sync:mirror": "node src/scripts/syncR2Mirror.js"
+    "sync:mirror": "node src/scripts/syncR2Mirror.js",
+    "reconcile:dates": "node src/scripts/reconcileDates.js"
   },
   "keywords": [],
   "author": "",
@@ -59,6 +60,7 @@
     "pino-http": "^11.0.0",
     "playwright": "^1.62.1",
     "rate-limit-redis": "^6.0.1",
+    "razorpay": "^2.9.8",
     "sharp": "^0.35.4",
     "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"

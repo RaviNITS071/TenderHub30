@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { connectDB } from '../config/db.js';
 import pino from 'pino';
 import { tenderSyncWorker } from './tenderSync.worker.js';
+import { whatsappWorker } from '../modules/notifications/workers/whatsapp.worker.js';
 
 // Note: Uncomment this only after you create src/workers/aiSummary.worker.js
 // import { aiSummaryWorker } from './aiSummary.worker.js';
@@ -19,6 +20,10 @@ const startWorkers = async () => {
     // 2. Attach error listeners safely
     tenderSyncWorker.on('failed', (job, err) => {
       logger.error(`TenderSync Job ${job?.id || 'unknown'} failed: ${err.message}`);
+    });
+
+    whatsappWorker.on('failed', (job, err) => {
+      logger.error(`WhatsApp Alert Job ${job?.id || 'unknown'} failed: ${err.message}`);
     });
 
     /*

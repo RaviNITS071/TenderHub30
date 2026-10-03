@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 
 import { PreferenceModal } from '@/components/shared/PreferenceModal';
+import { AuthPromptModal } from '@/components/shared/AuthPromptModal';
+import { useAuthStore } from '@/store/useAuthStore';
 import { Button } from '@/components/ui/Button';
 import { useTenderStats } from '@/hooks/useTenders';
 import { formatCurrencyINR, formatDateDisplay, formatDateTimeDisplay } from '@/utils/formatters';
@@ -41,6 +43,28 @@ const quickLocations = [
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Auth Prompt Modal State for recent tenders
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalConfig, setAuthModalConfig] = useState({
+    title: 'Sign In to View Full Tender Details',
+    subtitle: 'Official tender documents, BOQs, and authority specifications are protected.',
+    redirectUrl: '/tenders'
+  });
+
+  const handleTenderClick = (tender) => {
+    if (!isAuthenticated) {
+      setAuthModalConfig({
+        title: 'Sign In to View Full Tender Details',
+        subtitle: `Notice ${tender.sourceTenderId || ''}: ${tender.title?.slice(0, 80) || ''}...`,
+        redirectUrl: `/tenders/${tender._id}`
+      });
+      setAuthModalOpen(true);
+      return;
+    }
+    navigate(`/tenders/${tender._id}`);
+  };
 
   // Fetch real aggregated database statistics from backend
   const { data: stats, isLoading: isStatsLoading } = useTenderStats();
@@ -104,6 +128,13 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-paper dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
       <PreferenceModal />
+      <AuthPromptModal 
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        title={authModalConfig.title}
+        subtitle={authModalConfig.subtitle}
+        redirectUrl={authModalConfig.redirectUrl}
+      />
 
       {/* Hero Section: Classical, Dignified & Authentic */}
       <section className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pt-8 sm:pt-12 pb-12 sm:pb-16 px-3 sm:px-6 lg:px-8">
@@ -322,7 +353,7 @@ export default function Home() {
               return (
                 <div
                   key={tender._id}
-                  onClick={() => navigate(`/tenders/${tender._id}`)}
+                  onClick={() => handleTenderClick(tender)}
                   className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-dalBlue dark:hover:border-blue-400 rounded-xl p-4 sm:p-5 shadow-xs transition-all cursor-pointer flex flex-col justify-between hover:shadow-md hover:-translate-y-0.5"
                 >
                   <div className="space-y-2">

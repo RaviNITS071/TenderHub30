@@ -5,7 +5,16 @@
 
 import mongoose from 'mongoose';
 import Tender from '../models/Tender.js';
+import User from '../models/User.js';
+import Subscription from '../modules/billing/models/Subscription.js';
 import { aiQueue } from '../workers/queue.js';
+
+/**
+ * Helper to get current date formatted as YYYY-MM-DD in Asia/Kolkata (IST)
+ */
+const getTodayISTString = () => {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+};
 
 /**
  * Fetch a paginated list of tenders from the database with advanced filtering.
@@ -37,79 +46,56 @@ export const getTenders = async (req, res, next) => {
       return str.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     };
 
-    // Base filter conditions matching textual criteria (shared by active/archived counts)
-    const baseQuery = {};
+    // 2. Build array of base filter conditions (Category, Search, Department, Location)
+    const baseConditions = [];
 
-    // 2. Specific Category Filter (Matches productCategory or tenderCategory)
+    // Specific Category Filter (Matches productCategory or tenderCategory)
     if (category && typeof category === 'string' && category.trim()) {
       const escapedCategory = escapeRegex(category);
-      baseQuery.$or = [
-        { productCategory: { $regex: escapedCategory, $options: 'i' } },
-        { tenderCategory: { $regex: escapedCategory, $options: 'i' } }
-      ];
+      baseConditions.push({
+        $or: [
+          { productCategory: { $regex: escapedCategory, $options: 'i' } },
+          { tenderCategory: { $regex: escapedCategory, $options: 'i' } }
+        ]
+      });
     }
-    
-    // 3. Advanced Search Filter (Matches Title, Description, Tender IDs, Product & Tender Categories)
+
+    // Advanced Search Filter (Matches Title, Description, Tender IDs, Product & Tender Categories)
     if (search) {
       const escapedSearch = escapeRegex(search);
-      const searchOr = [
-        { title: { $regex: escapedSearch, $options: 'i' } },
-        { workDescription: { $regex: escapedSearch, $options: 'i' } },
-        { tenderReferenceNumber: { $regex: escapedSearch, $options: 'i' } },
-        { sourceTenderId: { $regex: escapedSearch, $options: 'i' } },
-        { organisationChain: { $regex: escapedSearch, $options: 'i' } },
-        { departmentName: { $regex: escapedSearch, $options: 'i' } },
-        { location: { $regex: escapedSearch, $options: 'i' } },
-        { productCategory: { $regex: escapedSearch, $options: 'i' } },
-        { tenderCategory: { $regex: escapedSearch, $options: 'i' } }
-      ];
-
-      if (baseQuery.$or) {
-        baseQuery.$and = [
-          { $or: baseQuery.$or },
-          { $or: searchOr }
-        ];
-        delete baseQuery.$or;
-      } else {
-        baseQuery.$or = searchOr;
-      }
+      baseConditions.push({
+        $or: [
+          { title: { $regex: escapedSearch, $options: 'i' } },
+          { workDescription: { $regex: escapedSearch, $options: 'i' } },
+          { tenderReferenceNumber: { $regex: escapedSearch, $options: 'i' } },
+          { sourceTenderId: { $regex: escapedSearch, $options: 'i' } },
+          { organisationChain: { $regex: escapedSearch, $options: 'i' } },
+          { departmentName: { $regex: escapedSearch, $options: 'i' } },
+          { location: { $regex: escapedSearch, $options: 'i' } },
+          { productCategory: { $regex: escapedSearch, $options: 'i' } },
+          { tenderCategory: { $regex: escapedSearch, $options: 'i' } }
+        ]
+      });
     }
 
-    // 4. Organisation & Department Filter (Searches inside organisationChain)
-    // If both are provided, we use $and to ensure both words exist in the chain
-    if (organisation || department) {
-      const orgConditions = [];
-      if (organisation) orgConditions.push({ organisationChain: { $regex: escapeRegex(organisation), $options: 'i' } });
-      if (department) orgConditions.push({ organisationChain: { $regex: escapeRegex(department), $options: 'i' } });
-
-      if (baseQuery.$and) {
-        baseQuery.$and.push(...orgConditions);
-      } else if (orgConditions.length > 1) {
-        baseQuery.$and = orgConditions;
-      } else {
-        baseQuery.organisationChain = orgConditions[0].organisationChain;
-      }
+    // Organisation & Department Filter
+    if (organisation) {
+      baseConditions.push({ organisationChain: { $regex: escapeRegex(organisation), $options: 'i' } });
+    }
+    if (department) {
+      baseConditions.push({ organisationChain: { $regex: escapeRegex(department), $options: 'i' } });
     }
 
-    // 5. Location Filter (searches location, title, or organisationChain where districts are commonly recorded)
+    // Location Filter
     if (location) {
-      const locOr = [
-        { location: { $regex: escapeRegex(location), $options: 'i' } },
-        { title: { $regex: escapeRegex(location), $options: 'i' } },
-        { organisationChain: { $regex: escapeRegex(location), $options: 'i' } }
-      ];
-
-      if (baseQuery.$and) {
-        baseQuery.$and.push({ $or: locOr });
-      } else if (baseQuery.$or) {
-        baseQuery.$and = [
-          { $or: baseQuery.$or },
-          { $or: locOr }
-        ];
-        delete baseQuery.$or;
-      } else {
-        baseQuery.$or = locOr;
-      }
+      const escapedLoc = escapeRegex(location);
+      baseConditions.push({
+        $or: [
+          { location: { $regex: escapedLoc, $options: 'i' } },
+          { title: { $regex: escapedLoc, $options: 'i' } },
+          { organisationChain: { $regex: escapedLoc, $options: 'i' } }
+        ]
+      });
     }
 
     const now = new Date();
@@ -117,33 +103,76 @@ export const getTenders = async (req, res, next) => {
     const activeFilter = {
       status: 'ACTIVE',
       isDelisted: { $ne: true },
-      closingDate: { $gte: now }
+      closingDate: { $gte: now },
+      $or: [
+        { bidSubmissionEndDate: { $exists: false } },
+        { bidSubmissionEndDate: null },
+        { bidSubmissionEndDate: { $gte: now } }
+      ]
     };
 
-    // Compute live counts for tabs (Latest / Active vs. Archived / Expired)
-    const activeCount = await Tender.countDocuments({ ...baseQuery, ...activeFilter });
-    const archivedCount = await Tender.countDocuments({ 
-      ...baseQuery, 
-      $or: [
-        { closingDate: { $lt: now } },
-        { status: { $in: ['EXPIRED', 'ARCHIVED'] } }
-      ]
-    });
+    const archivedFilterConditions = [
+      {
+        status: 'ARCHIVED',
+        isDelisted: { $ne: true }
+      },
+      {
+        isDelisted: { $ne: true },
+        closingDate: { $lt: now },
+        $or: [
+          { bidSubmissionEndDate: { $gte: now } },
+          { bidOpeningDate: { $gte: now } }
+        ]
+      }
+    ];
+
+    const expiredFilterConditions = [
+      {
+        $or: [
+          { status: 'EXPIRED' },
+          {
+            closingDate: { $lt: now },
+            $or: [
+              { bidOpeningDate: { $exists: false } },
+              { bidOpeningDate: null },
+              { bidOpeningDate: { $lt: now } }
+            ]
+          }
+        ]
+      }
+    ];
+
+    // Compute live counts for all 3 tabs (Active, Archived, Expired)
+    const activeCount = await Tender.countDocuments(
+      baseConditions.length > 0 ? { $and: [...baseConditions, activeFilter] } : activeFilter
+    );
+    const archivedCount = await Tender.countDocuments(
+      baseConditions.length > 0 
+        ? { $and: [...baseConditions, { $or: archivedFilterConditions }] } 
+        : { $or: archivedFilterConditions }
+    );
+    const expiredCount = await Tender.countDocuments(
+      baseConditions.length > 0 
+        ? { $and: [...baseConditions, { $or: expiredFilterConditions }] } 
+        : { $or: expiredFilterConditions }
+    );
 
     // 5. Build final query with status and closing date criteria
-    const query = { ...baseQuery };
+    const queryConditions = [...baseConditions];
 
     if (status === 'archived') {
-      // Archived tenders are those that have already expired
-      query.$or = [
-        { closingDate: { $lt: now } },
-        { status: { $in: ['EXPIRED', 'ARCHIVED'] } }
-      ];
+      // Archived tenders: download closed but bid submission in future, or bid opening in future
+      queryConditions.push({ $or: archivedFilterConditions });
+    } else if (status === 'expired') {
+      // Expired tenders: bid submission deadline passed AND bid opening concluded
+      queryConditions.push({ $or: expiredFilterConditions });
     } else if (status === 'cancelled') {
-      query.$or = [
-        { status: 'CANCELLED' },
-        { isDelisted: true }
-      ];
+      queryConditions.push({
+        $or: [
+          { status: 'CANCELLED' },
+          { isDelisted: true }
+        ]
+      });
     } else if (status === 'all') {
       // No automatic closingDate restriction
       if (closingDays) {
@@ -151,21 +180,23 @@ export const getTenders = async (req, res, next) => {
         if (!isNaN(days)) {
           const targetDate = new Date();
           targetDate.setDate(targetDate.getDate() + days);
-          query.closingDate = { $gte: now, $lte: targetDate };
+          queryConditions.push({ closingDate: { $gte: now, $lte: targetDate } });
         }
       }
     } else {
       // Default: 'active' (latest tenders currently open for bidding)
-      Object.assign(query, activeFilter);
+      queryConditions.push(activeFilter);
       if (closingDays) {
         const days = parseInt(closingDays, 10);
         if (!isNaN(days)) {
           const targetDate = new Date();
           targetDate.setDate(targetDate.getDate() + days);
-          query.closingDate = { $gte: now, $lte: targetDate };
+          queryConditions.push({ closingDate: { $gte: now, $lte: targetDate } });
         }
       }
     }
+
+    const query = queryConditions.length > 0 ? { $and: queryConditions } : {};
 
     // 6. Sort Configuration: Default to Most Recent Published Date First
     let sortConfig = { publishedDate: -1, createdAt: -1, _id: -1 };
@@ -204,7 +235,8 @@ export const getTenders = async (req, res, next) => {
         page: safePage, 
         limit: safeLimit,
         activeCount,
-        archivedCount
+        archivedCount,
+        expiredCount
       }
     });
   } catch (error) {
@@ -232,6 +264,102 @@ export const getTenderById = async (req, res, next) => {
     
     // Handle case where record does not exist
     if (!tender) return res.status(404).json({ error: 'Tender not found' });
+
+    // Authentication check
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({
+        error: 'Authentication required. Please sign in to view tender details.',
+        requireLogin: true
+      });
+    }
+
+    // Daily 5 views per user enforcement (bypassed for active Pro subscribers and Admins)
+    let user = await User.findById(req.user.userId);
+    const isAdmin = (user?.role === 'admin' || user?.role === 'superadmin' || req.user?.role === 'admin');
+    if (!user && !isAdmin) {
+      return res.status(401).json({ error: 'User account not found', requireLogin: true });
+    }
+
+    const now = new Date();
+    const tenderIdentifier = tender._id.toString();
+
+    // Check if user has an active Pro subscription in DB
+    const activeSub = await Subscription.findOne({
+      userId: user._id,
+      status: 'active',
+      currentPeriodEnd: { $gt: now },
+    });
+    const isPro = !!activeSub || isAdmin;
+
+    let viewsUsed = 0;
+    const viewsLimit = 5; // 5 tenders per user per 24 hours for free users
+    let viewsRemaining = 5;
+    let expiresAt = null;
+
+    if (!isPro) {
+      // 1. Check if the 24-hour window has expired or is uninitialized
+      const currentExpiry = user.dailyTenderViews?.expiresAt ? new Date(user.dailyTenderViews.expiresAt).getTime() : 0;
+      const isWindowExpired = !user.dailyTenderViews || !currentExpiry || now.getTime() >= currentExpiry;
+
+      if (isWindowExpired) {
+        // Start a fresh 24-hour allowance window
+        expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        user.dailyTenderViews = {
+          date: getTodayISTString(),
+          tenderIds: [tenderIdentifier],
+          windowStart: now,
+          expiresAt,
+        };
+        user.markModified('dailyTenderViews');
+        await user.save();
+      } else {
+        expiresAt = new Date(user.dailyTenderViews.expiresAt);
+        const viewedTenderIds = user.dailyTenderViews.tenderIds || [];
+        const alreadyViewedToday = viewedTenderIds.includes(tenderIdentifier) || 
+                                  (tender.sourceTenderId && viewedTenderIds.includes(tender.sourceTenderId));
+
+        if (!alreadyViewedToday) {
+          if (viewedTenderIds.length >= viewsLimit) {
+            const msRemaining = Math.max(0, expiresAt.getTime() - now.getTime());
+            const hoursRemaining = Math.floor(msRemaining / (1000 * 60 * 60));
+            const minutesRemaining = Math.ceil((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+            const resetFormatted = hoursRemaining > 0 
+              ? `${hoursRemaining}h ${minutesRemaining}m` 
+              : `${minutesRemaining} minutes`;
+
+            return res.status(403).json({
+              error: `Daily limit reached. You can view full details of up to 5 tenders per day. Your limit resets in ${resetFormatted}.`,
+              code: 'DAILY_LIMIT_EXCEEDED',
+              dailyLimitReached: true,
+              viewsUsed: viewsLimit,
+              viewsLimit,
+              viewsRemaining: 0,
+              resetsAt: expiresAt,
+              resetsInMs: msRemaining,
+              resetTime: resetFormatted,
+            });
+          }
+
+          // Record new unique tender view
+          user.dailyTenderViews.tenderIds.push(tenderIdentifier);
+          
+          // When the 5th tender is viewed (limit reached/expired), ensure a full 24-hour countdown from this moment
+          if (user.dailyTenderViews.tenderIds.length >= viewsLimit) {
+            user.dailyTenderViews.expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            expiresAt = user.dailyTenderViews.expiresAt;
+          }
+
+          user.markModified('dailyTenderViews');
+          await user.save();
+        }
+      }
+
+      viewsUsed = user.dailyTenderViews.tenderIds.length;
+      viewsRemaining = Math.max(0, viewsLimit - viewsUsed);
+    } else {
+      viewsUsed = 0;
+      viewsRemaining = 999999;
+    }
     
     // A tender has siblings ONLY IF explicitly detected during scraping on an intermediate multi-item page
     let relatedTenders = [];
@@ -249,7 +377,14 @@ export const getTenderById = async (req, res, next) => {
     res.status(200).json({
       ...tender,
       isMultiTender,
-      relatedTenders
+      relatedTenders,
+      viewsInfo: {
+        viewsUsed,
+        viewsLimit: isPro ? 'Unlimited' : viewsLimit,
+        viewsRemaining: isPro ? 'Unlimited' : viewsRemaining,
+        resetsAt: isPro ? null : expiresAt,
+        date: getTodayISTString()
+      }
     });
   } catch (error) {
     next(error);
@@ -298,7 +433,12 @@ export const getTenderStats = async (req, res, next) => {
     const activeMatch = {
       status: 'ACTIVE',
       isDelisted: { $ne: true },
-      closingDate: { $gte: now }
+      closingDate: { $gte: now },
+      $or: [
+        { bidSubmissionEndDate: { $exists: false } },
+        { bidSubmissionEndDate: null },
+        { bidSubmissionEndDate: { $gte: now } }
+      ]
     };
 
     // 1. Total active tenders count

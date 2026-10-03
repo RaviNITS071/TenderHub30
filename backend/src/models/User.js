@@ -53,6 +53,12 @@ const userSchema = new mongoose.Schema({
   isActive: { 
     type: Boolean, 
     default: true 
+  },
+  dailyTenderViews: {
+    date: { type: String, default: '' },
+    tenderIds: [{ type: String }],
+    windowStart: { type: Date },
+    expiresAt: { type: Date },
   }
 }, { timestamps: true });
 

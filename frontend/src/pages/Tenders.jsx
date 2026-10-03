@@ -4,8 +4,8 @@
  * Features structured dropdown filters (Districts, Categories, Authorities, Divisions),
  * prominent interactive focus and selection states, and live notice analytics.
  */
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Search, 
   RotateCcw, 
@@ -16,17 +16,24 @@ import {
   ChevronDown,
   Clock, 
   Archive, 
+  CalendarX,
   ArrowUpDown,
   MapPin,
   Layers,
   Building2,
   Calendar,
-  X
+  X,
+  Lock,
+  Eye,
+  Sparkles
 } from 'lucide-react';
 
 import { useTenders } from '@/hooks/useTenders';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TenderCard } from '@/components/shared/TenderCard';
+import { AuthPromptModal } from '@/components/shared/AuthPromptModal';
+import { useAuthStore } from '@/store/useAuthStore';
+import { billingApi } from '@/services/billingApi';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectItem } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -122,6 +129,52 @@ const DEADLINE_OPTIONS = [
 
 export default function Tenders() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, checkAuth } = useAuthStore();
+
+  const [subscription, setSubscription] = useState(null);
+
+  // Refresh user quota and subscription status on directory mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkAuth();
+      billingApi.getStatus().then((sub) => setSubscription(sub)).catch(() => {});
+    }
+  }, [isAuthenticated, checkAuth]);
+
+  const isPro = Boolean(
+    subscription?.hasActiveSubscription || 
+    user?.role === 'admin' || 
+    user?.role === 'owner' ||
+    import.meta.env.VITE_TEST_MODE === 'true' ||
+    (typeof window !== 'undefined' && window.location.port === '5175')
+  );
+
+  // Auth Prompt Modal State
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalConfig, setAuthModalConfig] = useState({
+    title: 'Sign In to View Full Tender Details',
+    subtitle: 'Official tender documents, BOQs, and authority specifications are protected.',
+    redirectUrl: '/tenders'
+  });
+
+  const handleRequestAuth = (config = {}) => {
+    setAuthModalConfig((prev) => ({ ...prev, ...config }));
+    setAuthModalOpen(true);
+  };
+
+  const handleViewDetails = (tender) => {
+    const tenderId = tender._id || tender.sourceTenderId;
+    if (!isAuthenticated) {
+      handleRequestAuth({
+        title: 'Sign In to View Full Tender Details',
+        subtitle: `Notice ${tender.sourceTenderId || tender.tenderReferenceNumber || 'NIT'}: ${tender.title?.slice(0, 80) || ''}...`,
+        redirectUrl: `/tenders/${tenderId}`
+      });
+      return;
+    }
+    navigate(`/tenders/${tenderId}`);
+  };
 
   // 1. Initial State from URL params
   const initialSearch = searchParams.get('search') || '';
@@ -153,6 +206,9 @@ export default function Tenders() {
     Boolean(closingDate),
   ].filter(Boolean).length;
 
+  // Unauthenticated guests get up to 25 items on page 1 so 15 are visible and remaining are blurred
+  const queryLimit = isAuthenticated ? 10 : 25;
+
   // 2. Construct API Query
   const queryFilters = {
     search: debouncedSearch,
@@ -164,7 +220,7 @@ export default function Tenders() {
     status: status,
     sortBy: sortBy,
     page: currentPage,
-    limit: 10,
+    limit: queryLimit,
   };
 
   const { data, isLoading, isError, error } = useTenders(queryFilters);
@@ -173,7 +229,8 @@ export default function Tenders() {
   const totalCount = data?.meta?.total || 0;
   const activeCount = data?.meta?.activeCount ?? 0;
   const archivedCount = data?.meta?.archivedCount ?? 0;
-  const totalPages = Math.ceil(totalCount / 10) || 1;
+  const expiredCount = data?.meta?.expiredCount ?? 0;
+  const totalPages = Math.ceil(totalCount / (isAuthenticated ? 10 : 25)) || 1;
 
   // 3. Handlers
   const handleReset = () => {
@@ -190,6 +247,14 @@ export default function Tenders() {
   };
 
   const handlePageChange = (newPage) => {
+    if (!isAuthenticated && newPage > 1) {
+      handleRequestAuth({
+        title: 'Sign In to View More Tenders',
+        subtitle: 'Guests are limited to previewing the 15 latest tender notices. Sign in to browse all pages and view details.',
+        redirectUrl: '/tenders'
+      });
+      return;
+    }
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -201,9 +266,38 @@ export default function Tenders() {
         {/* Page Title & Reset Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-6">
           <div>
-            <h1 className="text-xl sm:text-3xl font-bold font-display text-slate-900 dark:text-white tracking-tight">
-              Tender Notice Directory
-            </h1>
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h1 className="text-xl sm:text-3xl font-bold font-display text-slate-900 dark:text-white tracking-tight">
+                Tender Notice Directory
+              </h1>
+              {(import.meta.env.VITE_TEST_MODE === 'true' || (typeof window !== 'undefined' && window.location.port === '5175')) ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>Testing Port 5175: All Content &amp; Full Details Unlocked (No Login Required)</span>
+                </span>
+              ) : !isAuthenticated ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                  <Lock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  <span>Guest Preview (15 Latest Notices)</span>
+                </span>
+              ) : isPro ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>TenderHub Pro Active: All Notices &amp; WhatsApp Alerts Unlocked</span>
+                </span>
+              ) : (
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
+                  (user?.dailyViews?.viewsUsed ?? 0) >= (typeof user?.dailyViews?.viewsLimit === 'number' ? user.dailyViews.viewsLimit : 5)
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                }`}>
+                  <Eye className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Daily Views: {user?.dailyViews?.viewsUsed ?? 0}/{user?.dailyViews?.viewsLimit === 'Unlimited' ? 'Unlimited' : (user?.dailyViews?.viewsLimit ?? 5)} used (24h limit)
+                  </span>
+                </span>
+              )}
+            </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               Official public works, civil contracts, and procurement notices published across J&amp;K.
             </p>
@@ -446,14 +540,14 @@ export default function Tenders() {
             {/* Top Tab Bar: Latest vs Archived Notices + Sorting */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 sm:p-2.5 rounded-2xl shadow-xs">
               {/* Menu Tabs with High-Contrast Active States */}
-              <div className="grid grid-cols-2 sm:flex items-center gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800 w-full sm:w-auto">
+              <div className="grid grid-cols-3 sm:flex items-center gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
                     setStatus('active');
                     setCurrentPage(1);
                   }}
-                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                     status === 'active'
                       ? 'bg-dalBlue text-white shadow-sm font-bold border border-dalBlue dark:bg-blue-600 dark:border-blue-500 ring-2 ring-dalBlue/20 dark:ring-blue-400/30'
                       : 'text-slate-600 dark:text-slate-400 hover:text-dalBlue dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
@@ -476,13 +570,14 @@ export default function Tenders() {
                     setStatus('archived');
                     setCurrentPage(1);
                   }}
-                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                     status === 'archived'
-                      ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-sm font-bold border border-slate-800 dark:border-slate-600 ring-2 ring-slate-800/20 dark:ring-slate-500/30'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
+                      ? 'bg-amber-700 text-white dark:bg-amber-600 shadow-sm font-bold border border-amber-700 dark:border-amber-500 ring-2 ring-amber-600/20'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-amber-700 dark:hover:text-amber-400 hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
                   }`}
+                  title="Tenders whose download closed or awaiting bid opening"
                 >
-                  <Archive className={`w-3.5 h-3.5 shrink-0 ${status === 'archived' ? 'text-white' : 'text-slate-400'}`} />
+                  <Archive className={`w-3.5 h-3.5 shrink-0 ${status === 'archived' ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
                   <span className="truncate">Archived</span>
                   <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold shrink-0 ${
                     status === 'archived' 
@@ -490,6 +585,30 @@ export default function Tenders() {
                       : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                   }`}>
                     {archivedCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus('expired');
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all duration-150 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
+                    status === 'expired'
+                      ? 'bg-slate-800 text-white dark:bg-slate-700 shadow-sm font-bold border border-slate-800 dark:border-slate-600 ring-2 ring-slate-800/20 dark:ring-slate-500/30'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800 font-medium'
+                  }`}
+                  title="Tenders whose bid submission deadline has elapsed"
+                >
+                  <CalendarX className={`w-3.5 h-3.5 shrink-0 ${status === 'expired' ? 'text-white' : 'text-slate-500'}`} />
+                  <span className="truncate">Expired</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold shrink-0 ${
+                    status === 'expired' 
+                      ? 'bg-white/20 text-white' 
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {expiredCount}
                   </span>
                 </button>
               </div>
@@ -593,7 +712,7 @@ export default function Tenders() {
             {/* Total Results Summary */}
             <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2.5 rounded-xl text-xs text-slate-600 dark:text-slate-400 shadow-xs">
               <span>
-                Showing <strong className="font-mono text-sm text-dalBlue dark:text-blue-400 font-bold">{totalCount}</strong> {status === 'archived' ? 'archived notices' : 'active notices'}
+                Showing <strong className="font-mono text-sm text-dalBlue dark:text-blue-400 font-bold">{totalCount}</strong> {status === 'archived' ? 'archived notices' : status === 'expired' ? 'expired notices' : 'active notices'}
               </span>
               <span className="text-[11px] text-slate-400 hidden sm:inline">
                 Page {currentPage} of {totalPages}
@@ -619,14 +738,92 @@ export default function Tenders() {
             {/* Tender Feed */}
             {!isLoading && !isError && tenders.length > 0 && (
               <div className="space-y-4">
-                {tenders.map((tender) => (
-                  <TenderCard key={tender._id || tender.sourceTenderId} tender={tender} />
-                ))}
+                {tenders.map((tender, index) => {
+                  const isBlurredCard = !isPro && index >= 15;
+                  return (
+                    <div key={tender._id || tender.sourceTenderId} className="space-y-4">
+                      {/* Banner injected before first blurred tender card (index 15) */}
+                      {!isPro && index === 15 && (
+                        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-dalBlue to-slate-950 text-white p-5 sm:p-7 shadow-xl border border-dalBlue/50 my-6">
+                          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/20 shadow-inner">
+                                <Lock className="w-6 h-6 text-chinarRed" />
+                              </div>
+                              <div>
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-[11px] font-mono font-bold text-blue-200 mb-1.5">
+                                  <span>Viewing 15 of {totalCount} Active Notices</span>
+                                </div>
+                                <h3 className="text-base sm:text-lg font-display font-bold">
+                                  {isAuthenticated ? 'Upgrade to TenderHub Pro (₹399/mo)' : 'Unlock All Tender Notices & Technical Details'}
+                                </h3>
+                                <p className="text-xs text-blue-100/80 mt-1 max-w-xl leading-relaxed">
+                                  {isAuthenticated 
+                                    ? 'Get unlimited tender views, 1-click BOQ Excel downloads, and automated WhatsApp alerts for your preferred J&K departments & districts.'
+                                    : 'Cards below are blurred for preview. Log in or create a free contractor account to unlock all active tenders, search across 20 districts, and download BOQs.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full md:w-auto shrink-0">
+                              {isAuthenticated ? (
+                                <Button
+                                  type="button"
+                                  onClick={() => navigate('/pricing')}
+                                  className="w-full sm:w-auto bg-chinarRed hover:bg-chinarRed/90 text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-lg cursor-pointer"
+                                >
+                                  Upgrade to Pro (₹399)
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  onClick={() => handleRequestAuth({
+                                    title: 'Sign In to View More Tenders',
+                                    subtitle: 'Sign in to unlock all tender notices and view full details (5 views/24 hours).',
+                                    redirectUrl: '/tenders'
+                                  })}
+                                  className="w-full sm:w-auto bg-chinarRed hover:bg-chinarRed/90 text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-lg cursor-pointer"
+                                >
+                                  Log In to View More Tenders
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div 
+                        onClick={() => {
+                          if (isBlurredCard) {
+                            if (!isAuthenticated) {
+                              handleRequestAuth({
+                                title: 'Sign In to View More Tenders',
+                                subtitle: 'Sign in to unlock all tender notices and view full details.',
+                                redirectUrl: '/tenders'
+                              });
+                            } else {
+                              navigate('/pricing');
+                            }
+                            return;
+                          }
+                        }}
+                        className={isBlurredCard ? 'cursor-pointer' : ''}
+                      >
+                        <TenderCard 
+                          tender={tender} 
+                          isBlurred={isBlurredCard}
+                          onViewDetails={() => handleViewDetails(tender)}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
 
                 {/* Standard Pagination */}
                 <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-2xl mt-6 shadow-xs gap-3">
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     Page <strong className="text-slate-800 dark:text-white font-mono">{currentPage}</strong> of <strong className="text-slate-800 dark:text-white font-mono">{totalPages}</strong>
+                    {!isAuthenticated && <span className="ml-2 text-slate-400 dark:text-slate-500 font-normal">(Sign in for all pages)</span>}
                   </span>
 
                   <div className="flex items-center gap-1.5">
@@ -659,11 +856,13 @@ export default function Tenders() {
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center space-y-3 shadow-xs">
                 <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
                 <h4 className="text-base font-bold text-slate-800 dark:text-white">
-                  {status === 'archived' ? 'No Archived Notices Found' : 'No Matching Tender Notices'}
+                  {status === 'archived' ? 'No Archived Notices Found' : status === 'expired' ? 'No Expired Notices Found' : 'No Matching Tender Notices'}
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                   {status === 'archived'
-                    ? 'No expired notices match your current filters. Adjust your criteria or switch to Latest Notices.'
+                    ? 'No notices currently awaiting bid opening or with download concluded match your filters.'
+                    : status === 'expired'
+                    ? 'No expired notices match your current filters.'
                     : 'Try clearing specific department, category, or district filters to broaden your search results.'}
                 </p>
                 <div className="pt-2">
@@ -676,6 +875,15 @@ export default function Tenders() {
           </main>
         </div>
       </div>
+
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        open={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        title={authModalConfig.title}
+        subtitle={authModalConfig.subtitle}
+        redirectUrl={authModalConfig.redirectUrl}
+      />
     </div>
   );
 }

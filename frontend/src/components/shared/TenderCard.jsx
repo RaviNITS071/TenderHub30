@@ -9,12 +9,27 @@ import { Clock, MapPin, Heart, ArrowRight, FileSpreadsheet, Building2, Calendar,
 import { formatCurrencyINR, formatDateDisplay, formatDateTimeDisplay, extractFamousLocation } from '@/utils/formatters';
 import { useBookmarkStore } from '@/store/useBookmarkStore';
 
-export function TenderCard({ tender }) {
+import { useAuthStore } from '@/store/useAuthStore';
+
+export function TenderCard({ tender, onViewDetails, isBlurred = false }) {
   const { toggleBookmark, isBookmarked } = useBookmarkStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const navigate = useNavigate();
   
   const tenderId = tender._id || tender.sourceTenderId;
   const bookmarked = isBookmarked(tenderId);
+
+  const handleCardClick = () => {
+    if (onViewDetails) {
+      onViewDetails(tender);
+      return;
+    }
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=${encodeURIComponent(`/tenders/${tenderId}`)}`);
+      return;
+    }
+    navigate(`/tenders/${tenderId}`);
+  };
   
   // Extract department hierarchy
   const orgParts = (tender.organisationChain || '').split('||').map((p) => p.trim());
@@ -31,9 +46,15 @@ export function TenderCard({ tender }) {
 
   const isCritical = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3;
   const isWarning = daysLeft !== null && daysLeft > 3 && daysLeft <= 7;
+  const bidOpeningTime = tender.bidOpeningDate ? new Date(tender.bidOpeningDate).getTime() : 0;
+  const isAwaitingOpening = daysLeft !== null && daysLeft < 0 && bidOpeningTime >= new Date().getTime();
 
   return (
-    <article className="group bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 hover:border-dalBlue dark:hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 rounded-2xl p-4 sm:p-6 shadow-xs transition-all duration-200 flex flex-col justify-between focus-within:border-dalBlue dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-dalBlue/20 dark:focus-within:ring-blue-400/20">
+    <article className={`group bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-4 sm:p-6 shadow-xs transition-all duration-200 flex flex-col justify-between ${
+      isBlurred 
+        ? 'filter blur-[4px] select-none pointer-events-none opacity-45' 
+        : 'hover:border-dalBlue dark:hover:border-blue-400 hover:shadow-md hover:-translate-y-0.5 focus-within:border-dalBlue dark:focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-dalBlue/20 dark:focus-within:ring-blue-400/20'
+    }`}>
       
       {/* Header Row: Tender ID, Authority & Save Heart */}
       <div>
@@ -73,7 +94,7 @@ export function TenderCard({ tender }) {
 
         {/* Title */}
         <h3 
-          onClick={() => navigate(`/tenders/${tenderId}`)}
+          onClick={handleCardClick}
           className="text-sm sm:text-base lg:text-lg font-display font-bold text-slate-900 dark:text-white group-hover:text-dalBlue dark:group-hover:text-blue-300 hover:underline decoration-dalBlue/30 underline-offset-2 transition-colors leading-snug line-clamp-2 cursor-pointer mb-1.5"
         >
           {tender.title?.replace(/[[\]]/g, '') || 'Tender Notice'}
@@ -161,6 +182,11 @@ export function TenderCard({ tender }) {
               <Clock className="w-3 h-3 shrink-0" />
               <span className="truncate">{daysLeft === 0 ? 'Closes Today' : `${daysLeft} days left`}</span>
             </span>
+          ) : isAwaitingOpening ? (
+            <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900 px-2 py-0.5 rounded truncate" title="Bid submission deadline has ended. Technical opening / evaluation in progress.">
+              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="truncate">Bidding Closed · Awaiting Opening</span>
+            </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 truncate">
               Closed
@@ -213,7 +239,7 @@ export function TenderCard({ tender }) {
         <div className="w-full sm:w-auto">
           <button
             type="button"
-            onClick={() => navigate(`/tenders/${tenderId}`)}
+            onClick={handleCardClick}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-dalBlue hover:bg-chinarRed text-white rounded-xl transition-all duration-150 shadow-xs hover:shadow-md hover:ring-2 hover:ring-chinarRed/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed cursor-pointer group/btn"
           >
             <span>View Notice</span>

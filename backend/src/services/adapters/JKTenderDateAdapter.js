@@ -35,6 +35,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
 import pino from 'pino';
+import { eventBus } from '../../events/eventBus.js';
 
 const logger = pino();
 const execPromise = util.promisify(exec);
@@ -1460,6 +1461,11 @@ export class JKTenderDateAdapter extends TenderSourceAdapter {
         { upsert: true, returnDocument: 'after' }
       ).lean()
     );
+
+    // Asynchronously notify subscribers via EventBus (Microservice-ready)
+    if (saved) {
+      eventBus.emit('tender.saved', saved);
+    }
 
     // 1b. If part of a multi-tender group, link sibling tenders mutually
     if (saved.isMultiTender && saved.baseTenderId) {

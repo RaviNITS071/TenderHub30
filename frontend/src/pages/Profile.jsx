@@ -17,9 +17,11 @@ import {
   X,
   Save,
   RotateCcw,
-  Database
+  Database,
+  MessageSquare
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { WhatsAppAlertsTab } from '@/components/profile/WhatsAppAlertsTab';
 
 import { useBookmarkStore } from '@/store/useBookmarkStore';
 import { usePreferenceStore } from '@/store/usePreferenceStore';
@@ -129,7 +131,8 @@ export default function Profile() {
   const tabs = [
     { id: 'saved', icon: Heart, label: `Saved Tenders (${savedTenders.length})` },
     { id: 'company', icon: Building, label: 'Contractor Profile' },
-    { id: 'alerts', icon: Sliders, label: 'Filter Preferences' }
+    { id: 'alerts', icon: Sliders, label: 'Filter Preferences' },
+    { id: 'whatsapp', icon: MessageSquare, label: 'WhatsApp Alerts (Pro)' }
   ];
 
   // Handlers for Contractor Profile
@@ -796,6 +799,11 @@ export default function Profile() {
               </form>
             )}
           </div>
+        )}
+
+        {/* Tab 4: WhatsApp Alerts (Pro) */}
+        {activeTab === 'whatsapp' && (
+          <WhatsAppAlertsTab />
         )}
 
       </div>

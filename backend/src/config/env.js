@@ -35,6 +35,15 @@ const envVarsSchema = Joi.object({
   BACKUP_R2_SECRET_ACCESS_KEY: Joi.string().allow('').optional(),
   BACKUP_R2_ACCOUNT_ID: Joi.string().allow('').optional(),
   BACKUP_R2_BUCKET_NAME: Joi.string().allow('').optional(),
+  RAZORPAY_KEY_ID: Joi.string().allow('').optional(),
+  RAZORPAY_KEY_SECRET: Joi.string().allow('').optional(),
+  RAZORPAY_WEBHOOK_SECRET: Joi.string().allow('').optional(),
+  WHATSAPP_API_TOKEN: Joi.string().allow('').optional(),
+  WHATSAPP_PHONE_NUMBER_ID: Joi.string().allow('').optional(),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: Joi.string().allow('').optional(),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: Joi.string().allow('').optional(),
+  AISENSY_API_KEY: Joi.string().allow('').optional(),
+  AISENSY_CAMPAIGN_NAME: Joi.string().default('tender_alert'),
 }).unknown();
 
 const { value: envVars, error } = envVarsSchema.validate(process.env);

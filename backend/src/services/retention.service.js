@@ -37,33 +37,32 @@ export class RetentionService {
       {
         closingDate: { $lt: now },
         status: { $ne: 'EXPIRED' },
-        // Safety guard: never mark expired if bid opening date is still in the future
-        // A tender cannot be closed before bids are opened — if bidOpeningDate > now,
-        // the closingDate is likely a scraping error (e.g. wrong month parsed)
-        $or: [
-          { bidOpeningDate: { $exists: false } },
-          { bidOpeningDate: null },
-          { bidOpeningDate: { $lte: now } }
+        // Strict guard: only mark expired if BOTH bid submission deadline has ended
+        // AND bid opening date has passed (or not set).
+        // If bid submission is still open OR bid opening is pending, tender belongs in ARCHIVED.
+        $and: [
+          { $or: [{ bidSubmissionEndDate: { $exists: false } }, { bidSubmissionEndDate: null }, { bidSubmissionEndDate: { $lte: now } }] },
+          { $or: [{ bidOpeningDate: { $exists: false } }, { bidOpeningDate: null }, { bidOpeningDate: { $lte: now } }] }
         ]
       },
       { $set: { status: 'EXPIRED' } }
     );
 
     if (result.modifiedCount > 0) {
-      logger.info(`[RetentionService] 🏷️ Marked ${result.modifiedCount} tender(s) as EXPIRED (Current time > closing date & time).`);
+      logger.info(`[RetentionService] 🏷️ Marked ${result.modifiedCount} tender(s) as EXPIRED (Current time > BID END & opening date).`);
     }
     return result.modifiedCount;
   }
 
   /**
-   * Purges all expired tenders (closingDate < now or status === 'EXPIRED')
+   * Purges all expired tenders (bid submission deadline and opening both concluded)
    * from MongoDB, Primary Cloudflare R2, and Secondary Backup Cloudflare R2.
-   * Ensures that expired tender data (both JSON metadata and documents)
-   * is deleted immediately with NO 14-day stay in the backup server.
+   * Ensures that expired tender data is deleted on a daily basis while keeping
+   * archived tenders safe.
    */
   async purgeExpiredTenders(triggeredBy = 'MANUAL') {
     const now = new Date();
-    logger.info(`[RetentionService] 🧹 Starting purge of expired tenders (Closing Date < ${now.toISOString()})...`);
+    logger.info(`[RetentionService] 🧹 Starting daily purge of expired tenders partition...`);
 
     if (mongoose.connection.readyState !== 1) {
       await connectDB();
@@ -75,15 +74,23 @@ export class RetentionService {
     const filter = {
       $or: [
         { 
-          closingDate: { $lt: now },
-          // Safety guard: never purge if bid opening date is still in the future
+          status: 'EXPIRED',
           $or: [
             { bidOpeningDate: { $exists: false } },
             { bidOpeningDate: null },
             { bidOpeningDate: { $lte: now } }
           ]
         },
-        { status: 'EXPIRED' }
+        { 
+          $or: [
+            { bidSubmissionEndDate: { $lt: now } },
+            { closingDate: { $lt: now } }
+          ],
+          $and: [
+            { $or: [{ bidSubmissionEndDate: { $exists: false } }, { bidSubmissionEndDate: null }, { bidSubmissionEndDate: { $lte: now } }] },
+            { $or: [{ bidOpeningDate: { $exists: false } }, { bidOpeningDate: null }, { bidOpeningDate: { $lte: now } }] }
+          ]
+        }
       ]
     };
 

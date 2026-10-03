@@ -124,7 +124,9 @@ export default function Login({ defaultMode }) {
     }
 
     if (searchParams.get('auth') === 'success' || isAuthenticated) {
-      navigate('/profile', { replace: true });
+      const redirect = searchParams.get('redirect');
+      const target = redirect && redirect.startsWith('/') ? redirect : '/profile';
+      navigate(target, { replace: true });
     }
   }, [searchParams, isAuthenticated, navigate]);
 

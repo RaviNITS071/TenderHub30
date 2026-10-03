@@ -18,6 +18,10 @@ import { tenderQueue } from '../workers/queue.js';
 import { retentionService } from './retention.service.js';
 import { backupService } from './backup.service.js';
 import { reconciliationService } from './reconciliation.service.js';
+import Subscription from '../modules/billing/models/Subscription.js';
+import ContractorPreference from '../modules/notifications/models/ContractorPreference.js';
+import { matchingEngine } from '../modules/notifications/services/matching.engine.js';
+import { getWhatsAppProvider } from '../modules/notifications/adapters/whatsappProvider.js';
 
 const logger = pino();
 
@@ -99,7 +103,17 @@ export class SchedulerService {
       timezone: 'Asia/Kolkata'
     });
 
-    logger.info('✅ [Scheduler] Office-hours polling, evening sweep, doc recovery, parity reconciliation & 03:00 AM purge crons registered successfully.');
+    // 8. Automated Morning WhatsApp Digest to Pro Contractors (09:30 AM IST, Mon-Sat)
+    cron.schedule('30 9 * * 1-6', async () => {
+      logger.info('[Scheduler] ⏰ Running scheduled 09:30 AM WhatsApp Digest for Pro contractors...');
+      await this.triggerWhatsAppDailyDigest().catch(err => {
+        logger.error(`[Scheduler] 09:30 AM WhatsApp digest failed: ${err.message}`);
+      });
+    }, {
+      timezone: 'Asia/Kolkata'
+    });
+
+    logger.info('✅ [Scheduler] Office-hours polling, evening sweep, doc recovery, parity reconciliation, 09:30 AM WhatsApp digest & 03:00 AM purge crons registered successfully.');
   }
 
   /**
@@ -316,6 +330,65 @@ export class SchedulerService {
       existing.scheduledSlots = ['Every 30m (09:05-19:05 IST Mon-Sat)', '19:15 Evening Catchup', '20:00 Doc Recovery'];
       await existing.save();
       logger.info('[Scheduler] Updated existing CronConfig settings document to 30-min office-hours configuration.');
+    }
+  }
+
+  /**
+   * Dispatches automated morning WhatsApp digest to active Pro contractors
+   */
+  async triggerWhatsAppDailyDigest() {
+    try {
+      // 1. Fetch active subscriptions (Pro members with WhatsApp enabled)
+      const activeSubs = await Subscription.find({
+        status: { $in: ['active', 'trialing'] },
+        currentPeriodEnd: { $gt: new Date() },
+        'features.whatsappAlerts': true,
+      }).select('userId');
+
+      const eligibleUserIds = activeSubs.map(s => s.userId);
+      if (eligibleUserIds.length === 0) {
+        logger.info('[WhatsAppDigest] Zero active Pro subscribers found. Skipping morning digest.');
+        return;
+      }
+
+      // 2. Fetch recent active tenders (published in last 36 hours)
+      const sinceDate = new Date(Date.now() - 36 * 60 * 60 * 1000);
+      const recentTenders = await Tender.find({
+        status: 'ACTIVE',
+        createdAt: { $gte: sinceDate },
+      }).sort({ publishedDate: -1 }).limit(50).lean();
+
+      if (recentTenders.length === 0) {
+        logger.info('[WhatsAppDigest] No new tenders published in the last 36 hours. Skipping digest.');
+        return;
+      }
+
+      // 3. Fetch contractor preferences
+      const preferences = await ContractorPreference.find({
+        userId: { $in: eligibleUserIds },
+        whatsappEnabled: true,
+        dailyDigest: true,
+        whatsappPhone: { $exists: true, $ne: '' },
+      }).populate('userId', 'name email');
+
+      const provider = getWhatsAppProvider();
+      let sentCount = 0;
+
+      for (const pref of preferences) {
+        const matches = recentTenders.filter(t => matchingEngine.matches(t, pref));
+        if (matches.length > 0) {
+          await provider.sendDailyDigest({
+            phone: pref.whatsappPhone,
+            tenders: matches,
+            user: pref.userId,
+          }).catch(err => logger.warn(`Digest failed for ${pref.whatsappPhone}: ${err.message}`));
+          sentCount++;
+        }
+      }
+
+      logger.info(`[WhatsAppDigest] ✅ Morning digest successfully sent to ${sentCount} contractors.`);
+    } catch (err) {
+      logger.error(`[WhatsAppDigest] Error generating daily digest: ${err.message}`);
     }
   }
 }

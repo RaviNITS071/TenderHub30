@@ -46,6 +46,11 @@ export function Navbar() {
               <span className="text-[9px] sm:text-[10px] font-semibold tracking-wide bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-700">
                 J&amp;K
               </span>
+              {(import.meta.env.VITE_TEST_MODE === 'true' || (typeof window !== 'undefined' && window.location.port === '5175')) && (
+                <span className="text-[9px] sm:text-[10px] font-bold tracking-wide bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full border border-purple-300 dark:border-purple-800">
+                  TEST PORT 5175 (NO LOGIN)
+                </span>
+              )}
             </div>
             <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium tracking-normal mt-0.5 hidden sm:block">
               Public Works &amp; Procurement

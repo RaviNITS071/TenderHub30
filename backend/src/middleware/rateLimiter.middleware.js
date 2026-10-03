@@ -9,10 +9,17 @@ export const apiLimiter = rateLimit({
     prefix: 'rl-api:', 
   }),
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Limit each IP to 100 requests per `window`
+  limit: process.env.NODE_ENV === 'development' ? 50000 : 2000, // Generous limit in dev to prevent blocking legitimate usage
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  skip: (req) => {
+    // Never throttle during development or for local development requests
+    if (process.env.NODE_ENV === 'development') return true;
+    const ip = req.ip || req.connection.remoteAddress || '';
+    if (ip === '127.0.0.1' || ip === '::1' || ip.includes('localhost')) return true;
+    return false;
+  },
 });
 
 export const authLimiter = rateLimit({
@@ -22,10 +29,16 @@ export const authLimiter = rateLimit({
     prefix: 'rl-auth:',
   }),
   windowMs: 60 * 60 * 1000, // 1 hour
-  limit: 10, // Limit each IP to 10 login/register requests per hour
+  limit: process.env.NODE_ENV === 'development' ? 5000 : 50, // Limit each IP to login/register requests
   message: { error: 'Too many authentication attempts, please try again later.' },
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  skip: (req) => {
+    if (process.env.NODE_ENV === 'development') return true;
+    const ip = req.ip || req.connection.remoteAddress || '';
+    if (ip === '127.0.0.1' || ip === '::1' || ip.includes('localhost')) return true;
+    return false;
+  },
 });
 
 export const otpSendLimiter = rateLimit({

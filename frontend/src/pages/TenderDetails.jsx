@@ -3,13 +3,45 @@
  * @description Comprehensive view of a single tender, directly mirroring the J&K eProcurement 
  * portal data structure with clean typography, high-contrast light mode, and official portal helper.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Building2, Calendar, FileText, FileSpreadsheet, IndianRupee, Heart, ExternalLink, AlertCircle, Download, Layers, CreditCard, MapPin, Map, Compass, Copy, Check, X, Info, FileClock, Eye, FolderArchive, Loader2, FileCheck } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  Building2, 
+  Calendar, 
+  FileText, 
+  FileSpreadsheet, 
+  IndianRupee, 
+  Heart, 
+  ExternalLink, 
+  AlertCircle, 
+  Download, 
+  Layers, 
+  CreditCard, 
+  MapPin, 
+  Map, 
+  Compass, 
+  Copy, 
+  Check, 
+  X, 
+  Info, 
+  FileClock, 
+  Eye, 
+  FolderArchive, 
+  Loader2, 
+  FileCheck,
+  Lock,
+  Clock,
+  Sparkles,
+  AlertTriangle,
+  ShieldCheck
+} from 'lucide-react';
 import JSZip from 'jszip';
 
 import { useTender } from '@/hooks/useTenders';
 import { useBookmarkStore } from '@/store/useBookmarkStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import { formatCurrencyINR, formatDateDisplay, formatDateTimeDisplay, extractDetailedWorkLocation } from '@/utils/formatters';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/Modal';
@@ -37,10 +69,32 @@ const DataRow = ({ label, value }) => (
 export default function TenderDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: tender, isLoading, isError } = useTender(id);
+  const { isAuthenticated, isLoading: authLoading, updateDailyViews } = useAuthStore();
+  const { data: tender, isLoading, isError, error } = useTender(id);
   const { toggleBookmark, isBookmarked } = useBookmarkStore();
   const [isPortalModalOpen, setIsPortalModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
+
+  // Sync latest viewsInfo with global auth store immediately upon viewing tender
+  useEffect(() => {
+    if (tender?.viewsInfo) {
+      updateDailyViews(tender.viewsInfo);
+    }
+  }, [tender?.viewsInfo, updateDailyViews]);
+
+  // Sync if daily limit exceeded error was encountered
+  useEffect(() => {
+    if (error?.response?.data?.code === 'DAILY_LIMIT_EXCEEDED' || error?.response?.status === 403) {
+      const errorData = error.response.data;
+      updateDailyViews({
+        viewsUsed: errorData?.viewsUsed ?? 5,
+        viewsLimit: 5,
+        viewsRemaining: 0,
+        resetsAt: errorData?.resetsAt,
+        resetsInMs: errorData?.resetsInMs,
+      });
+    }
+  }, [error, updateDailyViews]);
 
   // In-browser ZIP extraction state
   const [isUnzipping, setIsUnzipping] = useState(false);
@@ -120,19 +174,155 @@ export default function TenderDetails() {
     setIsPortalModalOpen(true);
   };
 
-  if (isLoading) return (
+  if (authLoading || (isAuthenticated && isLoading)) return (
     <div className="min-h-screen bg-paper dark:bg-slate-900 flex items-center justify-center">
       <div className="w-8 h-8 rounded-full border-3 border-dalBlue border-t-transparent animate-spin" />
     </div>
   );
 
-  if (isError || !tender) return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 flex flex-col items-center justify-center text-center p-4">
-      <AlertCircle className="w-12 h-12 text-chinarRed mb-3" />
-      <h2 className="text-xl font-bold font-display text-slate-900 dark:text-white">Tender Not Found</h2>
-      <Button onClick={() => navigate('/tenders')} className="mt-3 text-xs">Back to Directory</Button>
-    </div>
-  );
+  // 1. Unauthenticated guest or expired session (401)
+  const isAuthRequired = !isAuthenticated || error?.response?.status === 401 || error?.response?.data?.requireLogin;
+
+  if (isAuthRequired) {
+    return (
+      <div className="min-h-screen bg-paper dark:bg-slate-900 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden p-6 sm:p-8 text-center space-y-6">
+          <div className="w-16 h-16 rounded-3xl bg-blue-50 dark:bg-blue-950/60 border border-dalBlue/30 text-dalBlue dark:text-blue-400 mx-auto flex items-center justify-center shadow-inner">
+            <Lock className="w-8 h-8 text-chinarRed" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <ShieldCheck className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" />
+              <span>Contractor Login Required</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-slate-900 dark:text-white">
+              Official Tender Details Locked
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+              Unauthenticated visitors can browse 15 latest tender cards. To view full specifications, BOQs, and authority details, please log in. Registered contractors can view <strong>5 full tender details per 24 hours</strong>.
+            </p>
+          </div>
+
+          <div className="space-y-2.5 pt-2">
+            <Button
+              onClick={() => navigate(`/login?redirect=${encodeURIComponent(`/tenders/${id}`)}`)}
+              className="w-full bg-dalBlue hover:bg-dalBlue-700 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm shadow-md"
+            >
+              Sign In to View Tender
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/signup?redirect=${encodeURIComponent(`/tenders/${id}`)}`)}
+              className="w-full border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2.5 rounded-xl text-xs sm:text-sm hover:border-dalBlue"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-chinarRed mr-1.5" /> Create Free Contractor Account
+            </Button>
+            <button
+              type="button"
+              onClick={() => navigate('/tenders')}
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium block mx-auto pt-1 cursor-pointer"
+            >
+              ← Back to Directory
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Daily limit exceeded (403 DAILY_LIMIT_EXCEEDED)
+  const errorData = error?.response?.data;
+  const isDailyLimitExceeded = errorData?.code === 'DAILY_LIMIT_EXCEEDED' || error?.response?.status === 403;
+
+  if (isDailyLimitExceeded) {
+    const resetTimeFormatted = errorData?.resetTime || (errorData?.resetsAt ? new Date(errorData.resetsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'in 24 hours');
+    const resetsAtFull = errorData?.resetsAt ? new Date(errorData.resetsAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'after 24 hours';
+
+    return (
+      <div className="min-h-screen bg-paper dark:bg-slate-900 py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-3xl border border-amber-200 dark:border-amber-900/60 shadow-xl overflow-hidden p-6 sm:p-8 text-center space-y-6">
+          <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-amber-600 dark:text-amber-400 mx-auto flex items-center justify-center shadow-inner">
+            <Clock className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-xs font-semibold text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-800">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+              <span>Daily Limit Reached (5/5)</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-display font-bold text-slate-900 dark:text-white">
+              Daily Tender View Limit Reached
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 max-w-sm mx-auto leading-relaxed">
+              You have viewed details of <strong>5 tenders</strong> in your 24-hour window. Free contractor accounts can view up to 5 complete tender details every 24 hours.
+            </p>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 text-left space-y-2">
+            <div className="flex justify-between">
+              <span className="font-semibold text-slate-500">Daily Allowance:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">5 Tenders / 24 Hours</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-semibold text-slate-500">Viewed in Window:</span>
+              <span className="font-bold text-chinarRed font-mono">5 (Limit Expired)</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="font-semibold text-slate-500">Limit Resets In:</span>
+              <span className="font-bold text-dalBlue dark:text-blue-400 font-mono">{resetTimeFormatted}</span>
+            </div>
+            <div className="flex justify-between border-t border-slate-200/60 dark:border-slate-800 pt-1.5 text-[11px]">
+              <span className="text-slate-400">Reset Date &amp; Time:</span>
+              <span className="text-slate-600 dark:text-slate-300 font-mono">{resetsAtFull}</span>
+            </div>
+          </div>
+
+          <div className="space-y-2.5 pt-2">
+            <Button
+              onClick={() => navigate('/tenders')}
+              className="w-full bg-dalBlue hover:bg-dalBlue-700 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm shadow-md"
+            >
+              Browse Directory Listings
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/profile')}
+              className="w-full border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold py-2.5 rounded-xl text-xs sm:text-sm hover:border-dalBlue"
+            >
+              Go to Saved Tenders
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Fallback error / 404 handling
+  if (isError || !tender) {
+    const isNotFound = error?.response?.status === 404;
+    return (
+      <div className="min-h-screen bg-paper dark:bg-slate-900 flex flex-col items-center justify-center text-center p-4">
+        <AlertCircle className="w-12 h-12 text-chinarRed mb-3" />
+        <h2 className="text-xl font-bold font-display text-slate-900 dark:text-white">
+          {isNotFound ? 'Tender Not Found' : 'Unable to Load Tender Details'}
+        </h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mt-1 mb-4">
+          {error?.response?.data?.error || (isNotFound ? 'The requested tender does not exist or has been removed.' : 'A network error occurred while loading this tender. Please try again.')}
+        </p>
+        <div className="flex items-center gap-2">
+          {!isNotFound && (
+            <Button onClick={() => window.location.reload()} variant="outline" className="text-xs">
+              Retry
+            </Button>
+          )}
+          <Button onClick={() => navigate('/tenders')} className="text-xs">
+            Back to Directory
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const bookmarked = isBookmarked(tender._id || tender.sourceTenderId);
   const orgParts = (tender.organisationChain || '').split('||').map(p => p.trim());
@@ -214,6 +404,12 @@ export default function TenderDetails() {
                   <span className="text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                     {tender.status || 'Active'}
                   </span>
+                  {tender.viewsInfo && (
+                    <span className="text-[11px] font-mono font-semibold bg-blue-50 dark:bg-blue-950/60 text-dalBlue dark:text-blue-300 px-2.5 py-0.5 rounded border border-dalBlue/30 flex items-center gap-1">
+                      <Eye className="w-3 h-3 text-dalBlue dark:text-blue-400" />
+                      <span>Daily Views: {tender.viewsInfo.viewsUsed}/{tender.viewsInfo.viewsLimit} used ({tender.viewsInfo.viewsRemaining} left in 24h)</span>
+                    </span>
+                  )}
                   {(totalDocsCount === 0 || tender.isDocumentAvailable === false) && (
                     <span className="text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800 flex items-center gap-1" title={(tender.documentDownloadStartDateStr || tender.documentDownloadStartDate) ? `Documents available on ${formatDateTimeDisplay(tender.documentDownloadStartDateStr || tender.documentDownloadStartDate)}` : 'Pending portal release'}>
                       <FileClock className="w-3 h-3 text-amber-600 dark:text-amber-400" />

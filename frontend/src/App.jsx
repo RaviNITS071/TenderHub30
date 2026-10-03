@@ -21,6 +21,8 @@ import Contact from './pages/Contact';
 import Login from './pages/Login';
 import { useAuthStore } from './store/useAuthStore';
 
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
+
 export default function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
 
@@ -36,17 +38,19 @@ export default function App() {
 
       {/* Main content area grows to push the footer to the bottom */}
       <main className="flex-1 flex flex-col">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/tenders" element={<Tenders />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/login" element={<Login defaultMode="login" />} />
-          <Route path="/signup" element={<Login defaultMode="signup" />} />
-          <Route path="/tenders/:id" element={<TenderDetails />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/tenders" element={<Tenders />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<Login defaultMode="login" />} />
+            <Route path="/signup" element={<Login defaultMode="signup" />} />
+            <Route path="/tenders/:id" element={<TenderDetails />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
 
       <Footer />

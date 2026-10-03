@@ -1,0 +1,220 @@
+/**
+ * @file backend/src/modules/billing/billing.service.js
+ * @description Core billing business logic orchestrating plans, checkouts, and activations.
+ */
+import Subscription from './models/Subscription.js';
+import { razorpayAdapter } from './adapters/RazorpayAdapter.js';
+import User from '../../models/User.js';
+import ContractorPreference from '../notifications/models/ContractorPreference.js';
+import { whatsappNotificationService } from '../notifications/services/whatsapp.service.js';
+import pino from 'pino';
+
+const logger = pino();
+
+export const PLANS = {
+  pro_monthly: {
+    id: 'pro_monthly',
+    name: 'TenderHub Pro Monthly',
+    price: 10, // INR (Temporarily set to 10 for testing)
+    periodDays: 30,
+    cycle: 'monthly',
+    popular: true,
+    description: 'Perfect for active individual contractors and suppliers.',
+    features: [
+      'Unlimited tender views & full pagination',
+      'Instant BOQ Excel & Price Schedule downloads',
+      'Custom WhatsApp alerts (Department, District, Value filters)',
+      'Unlimited saved tenders & contractor bookmarks',
+      'Corrigendum & deadline extension notifications',
+    ],
+  },
+  pro_quarterly: {
+    id: 'pro_quarterly',
+    name: 'TenderHub Pro Quarterly',
+    price: 999, // INR
+    periodDays: 90,
+    cycle: 'quarterly',
+    popular: false,
+    description: 'Best for contractors during peak summer/autumn working season.',
+    features: [
+      'All Pro Monthly features included',
+      'Save 17% compared to monthly renewal',
+      'Priority WhatsApp alert delivery',
+      'Dedicated contractor support',
+    ],
+  },
+  pro_annual: {
+    id: 'pro_annual',
+    name: 'TenderHub Pro Annual',
+    price: 2999, // INR
+    periodDays: 365,
+    cycle: 'annual',
+    popular: false,
+    description: 'Maximum savings for Class A/B engineering firms.',
+    features: [
+      'All Pro features for a full year',
+      'Save 37% (~₹249/month effective rate)',
+      'Direct WhatsApp priority support from engineering desk',
+      'Early access to new department adapters',
+    ],
+  },
+};
+
+export class BillingService {
+  getPlans() {
+    return Object.values(PLANS);
+  }
+
+  async createCheckoutOrder(userId, planId) {
+    const plan = PLANS[planId];
+    if (!plan) {
+      throw new Error(`Invalid plan selected: "${planId}".`);
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    // Amount in paise (1 INR = 100 paise)
+    const amountInPaise = plan.price * 100;
+    const receipt = `rcpt_${userId.toString().slice(-6)}_${Date.now()}`;
+
+    const order = await razorpayAdapter.createOrder({
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt,
+      notes: {
+        userId: userId.toString(),
+        planId: plan.id,
+        userEmail: user.email,
+      },
+    });
+
+    return {
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: order.keyId,
+      isMock: order.isMock,
+      plan: {
+        id: plan.id,
+        name: plan.name,
+        price: plan.price,
+      },
+      prefill: {
+        name: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        email: user.email,
+      },
+    };
+  }
+
+  async verifyAndActivateSubscription(userId, { orderId, paymentId, signature, planId, phone }) {
+    const plan = PLANS[planId];
+    if (!plan) {
+      throw new Error(`Invalid plan selected: "${planId}".`);
+    }
+
+    // 1. Verify cryptographic signature from Gateway
+    const isValidSignature = razorpayAdapter.verifyPaymentSignature({
+      orderId,
+      paymentId,
+      signature,
+    });
+
+    if (!isValidSignature) {
+      logger.warn(`Signature verification failed for user ${userId}, order ${orderId}`);
+      throw new Error('Payment signature verification failed. Untrusted payment payload.');
+    }
+
+    // 2. Calculate period duration
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + plan.periodDays * 24 * 60 * 60 * 1000);
+
+    // 3. Upsert / Activate Subscription
+    let subscription = await Subscription.findOne({ userId });
+
+    if (!subscription) {
+      subscription = new Subscription({
+        userId,
+        planId: plan.id,
+        billingCycle: plan.cycle,
+        amount: plan.price,
+        status: 'active',
+        currentPeriodStart: startDate,
+        currentPeriodEnd: endDate,
+        gateway: razorpayAdapter.isMockMode ? 'mock_test' : 'razorpay',
+        gatewayOrderId: orderId,
+        gatewayPaymentId: paymentId,
+      });
+    } else {
+      subscription.planId = plan.id;
+      subscription.billingCycle = plan.cycle;
+      subscription.amount = plan.price;
+      subscription.status = 'active';
+      subscription.currentPeriodStart = startDate;
+      // If user had existing active time left, extend from currentPeriodEnd
+      const baseEnd = subscription.currentPeriodEnd > startDate ? subscription.currentPeriodEnd : startDate;
+      subscription.currentPeriodEnd = new Date(baseEnd.getTime() + plan.periodDays * 24 * 60 * 60 * 1000);
+      subscription.gatewayOrderId = orderId;
+      subscription.gatewayPaymentId = paymentId;
+      subscription.cancelAtPeriodEnd = false;
+    }
+
+    await subscription.save();
+
+    // 4. Update user role if currently basic contractor
+    await User.findByIdAndUpdate(userId, {
+      role: 'contractor',
+      'dailyTenderViews.viewsLimit': 'Unlimited',
+    });
+
+    // 5. Update contractor WhatsApp phone if provided
+    if (phone) {
+      await ContractorPreference.findOneAndUpdate(
+        { userId },
+        { $set: { whatsappPhone: phone, whatsappEnabled: true } },
+        { upsert: true }
+      ).catch(() => {});
+    }
+
+    // 6. Asynchronously send WhatsApp payment receipt & confirmation
+    const user = await User.findById(userId);
+    whatsappNotificationService.sendPaymentReceipt({
+      user,
+      plan,
+      subscription,
+      paymentId,
+      phone,
+    }).catch((err) => logger.warn(`WhatsApp payment receipt dispatch skipped: ${err.message}`));
+
+    logger.info(`Subscription activated for user ${userId} on plan ${plan.id} until ${subscription.currentPeriodEnd.toISOString()}`);
+
+    return subscription;
+  }
+
+  async getUserSubscription(userId) {
+    if (!userId) return null;
+    const subscription = await Subscription.findOne({ userId });
+    if (!subscription) {
+      return {
+        hasActiveSubscription: false,
+        status: 'free',
+        plan: null,
+      };
+    }
+
+    const isActive = subscription.isValid();
+
+    return {
+      hasActiveSubscription: isActive,
+      status: isActive ? subscription.status : 'expired',
+      planId: subscription.planId,
+      billingCycle: subscription.billingCycle,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      features: subscription.features,
+    };
+  }
+}
+
+export const billingService = new BillingService();

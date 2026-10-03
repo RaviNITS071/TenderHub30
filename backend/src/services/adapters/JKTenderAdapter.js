@@ -38,6 +38,7 @@ import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
 import pino from 'pino';
+import { eventBus } from '../../events/eventBus.js';
 
 const logger = pino();
 const execPromise = util.promisify(exec);
@@ -1022,6 +1023,24 @@ export class JKTenderAdapter extends TenderSourceAdapter {
       item.bidSubmissionStartDate = parseISTDate(item.bidSubmissionStartDateStr);
       item.bidSubmissionEndDate = parseISTDate(item.bidSubmissionEndDateStr);
       item.bidOpeningDate = parseISTDate(item.bidOpeningDateStr);
+      item.closingDate = parseISTDate(item.closingDateStr) || item.bidSubmissionEndDate || item.documentDownloadEndDate;
+
+      // Date Integrity Guard: Closing date can never precede document download end or bid start
+      if (item.documentDownloadEndDate && item.closingDate && item.closingDate < item.documentDownloadEndDate) {
+        item.closingDate = item.documentDownloadEndDate;
+        item.closingDateStr = item.documentDownloadEndDateStr;
+        item.bidSubmissionEndDate = item.documentDownloadEndDate;
+        item.bidSubmissionEndDateStr = item.documentDownloadEndDateStr;
+      }
+      if (item.bidSubmissionStartDate && item.closingDate && item.closingDate < item.bidSubmissionStartDate) {
+        if (item.documentDownloadEndDate && item.documentDownloadEndDate >= item.bidSubmissionStartDate) {
+          item.closingDate = item.documentDownloadEndDate;
+          item.closingDateStr = item.documentDownloadEndDateStr;
+        } else if (item.bidOpeningDate) {
+          item.closingDate = item.bidOpeningDate;
+          item.closingDateStr = item.bidOpeningDateStr;
+        }
+      }
       item.r2StorageKey = formatTenderStorageKey(item.sourceTenderId, item.publishedDate, deptCode);
       item.pdfUrls = [];
       item.nitDocuments = [];
@@ -1587,8 +1606,23 @@ export class JKTenderAdapter extends TenderSourceAdapter {
       bidSubmissionEndDateStr: item.bidSubmissionEndDateStr || item.bidSubmissionEndDate,
       bidSubmissionEndTime: formatStandardTime(item.bidSubmissionEndDateStr || item.bidSubmissionEndDate),
 
-      closingDate: parseISTDate(item.closingDateStr || item.closingDate) || parseISTDate(item.bidSubmissionEndDateStr || item.bidSubmissionEndDate),
-      closingDateStr: item.closingDateStr || item.closingDate || item.bidSubmissionEndDateStr || item.bidSubmissionEndDate,
+      closingDate: (() => {
+        const docEnd = parseISTDate(item.documentDownloadEndDateStr || item.documentDownloadEndDate);
+        const bidStart = parseISTDate(item.bidSubmissionStartDateStr || item.bidSubmissionStartDate);
+        let c = parseISTDate(item.closingDateStr || item.closingDate) || parseISTDate(item.bidSubmissionEndDateStr || item.bidSubmissionEndDate);
+        if (docEnd && c && c < docEnd) c = docEnd;
+        if (bidStart && c && c < bidStart && docEnd && docEnd >= bidStart) c = docEnd;
+        return c;
+      })(),
+      closingDateStr: (() => {
+        const docEnd = parseISTDate(item.documentDownloadEndDateStr || item.documentDownloadEndDate);
+        const bidStart = parseISTDate(item.bidSubmissionStartDateStr || item.bidSubmissionStartDate);
+        let c = parseISTDate(item.closingDateStr || item.closingDate) || parseISTDate(item.bidSubmissionEndDateStr || item.bidSubmissionEndDate);
+        let cStr = item.closingDateStr || item.closingDate || item.bidSubmissionEndDateStr || item.bidSubmissionEndDate;
+        if (docEnd && c && c < docEnd) cStr = item.documentDownloadEndDateStr || item.documentDownloadEndDate;
+        if (bidStart && c && c < bidStart && docEnd && docEnd >= bidStart) cStr = item.documentDownloadEndDateStr || item.documentDownloadEndDate;
+        return cStr;
+      })(),
       closingTime: formatStandardTime(item.closingDateStr || item.closingDate || item.bidSubmissionEndDateStr || item.bidSubmissionEndDate),
 
       offlineInstruments: item.offlineInstruments || [],
@@ -1662,6 +1696,11 @@ export class JKTenderAdapter extends TenderSourceAdapter {
       { $set: docToSave },
       { upsert: true, returnDocument: 'after' }
     ).lean();
+
+    // Asynchronously notify subscribers via EventBus (Microservice-ready)
+    if (saved) {
+      eventBus.emit('tender.saved', saved);
+    }
 
     // 1b. Multi-tender sibling link updates
     if (saved.isMultiTender && saved.baseTenderId) {

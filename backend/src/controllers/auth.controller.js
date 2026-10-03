@@ -307,6 +307,42 @@ export const verifyOtp = async (req, res, next) => {
 /**
  * Redirect user to Google OAuth 2.0 authorization endpoint.
  * Supports mode: 'login' | 'signup'
+/**
+ * Resolves a single valid Google OAuth redirect URI matching the current request.
+ * Safely strips any comma-separated entries in env.GOOGLE_CALLBACK_URL.
+ */
+const resolveGoogleCallbackUrl = (req) => {
+  const configured = (env.GOOGLE_CALLBACK_URL || '').trim();
+  if (configured.includes(',')) {
+    const urls = configured.split(',').map((u) => u.trim());
+    const host = req.get('host') || '';
+    const matched = urls.find((u) => u.includes(host));
+    if (matched) return matched;
+    return env.NODE_ENV === 'production' ? (urls[1] || urls[0]) : urls[0];
+  }
+  if (configured) {
+    return configured;
+  }
+  const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+  return `${protocol}://${req.get('host')}/api/v1/auth/google/callback`;
+};
+
+const resolveFrontendUrl = (req) => {
+  const configured = (env.FRONTEND_URL || '').trim();
+  if (configured.includes(',')) {
+    const urls = configured.split(',').map((u) => u.trim());
+    const host = req.get('host') || '';
+    if (host.includes('render.com')) {
+      return urls.find((u) => u.includes('render.com')) || urls[0];
+    }
+    return urls.find((u) => u.includes('localhost') || u.includes('127.0.0.1')) || urls[0];
+  }
+  return configured || 'http://localhost:5173';
+};
+
+/**
+ * Initiate Google OAuth 2.0 / OpenID Connect authorization flow.
+ * Supports mode: 'login' | 'signup'
  *
  * @route GET /api/v1/auth/google
  */
@@ -319,12 +355,13 @@ export const googleAuth = async (req, res, next) => {
     }
 
     const mode = req.query.mode === 'signup' ? 'signup' : 'login';
+    const redirectUri = resolveGoogleCallbackUrl(req);
     const state = crypto.randomBytes(16).toString('hex');
-    await redis.setex(`oauth_state:${state}`, 600, mode); // store mode in redis for 10 minutes
+    await redis.setex(`oauth_state:${state}`, 600, JSON.stringify({ mode, redirectUri }));
 
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
-      redirect_uri: env.GOOGLE_CALLBACK_URL,
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
       state: state,
@@ -346,7 +383,7 @@ export const googleAuth = async (req, res, next) => {
  * @route GET /api/v1/auth/google/callback
  */
 export const googleCallback = async (req, res, next) => {
-  const frontendRedirect = env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendRedirect = resolveFrontendUrl(req);
 
   try {
     const { code, state, error } = req.query;
@@ -359,11 +396,20 @@ export const googleCallback = async (req, res, next) => {
       return res.redirect(`${frontendRedirect}/login?error=missing_oauth_state`);
     }
 
-    const storedMode = await redis.get(`oauth_state:${state}`);
-    if (!storedMode) {
+    const storedData = await redis.get(`oauth_state:${state}`);
+    if (!storedData) {
       return res.redirect(`${frontendRedirect}/login?error=invalid_oauth_state`);
     }
-    const mode = storedMode;
+
+    let mode = 'login';
+    let redirectUri = resolveGoogleCallbackUrl(req);
+    try {
+      const parsed = JSON.parse(storedData);
+      mode = parsed.mode || 'login';
+      if (parsed.redirectUri) redirectUri = parsed.redirectUri;
+    } catch {
+      mode = storedData;
+    }
     await redis.del(`oauth_state:${state}`);
 
     // 1. Exchange authorization code for tokens via Google OAuth Token Endpoint
@@ -376,7 +422,7 @@ export const googleCallback = async (req, res, next) => {
         code,
         client_id: env.GOOGLE_CLIENT_ID,
         client_secret: env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: env.GOOGLE_CALLBACK_URL,
+        redirect_uri: redirectUri,
         grant_type: 'authorization_code',
       }),
     });
@@ -515,6 +561,19 @@ export const getMe = async (req, res, next) => {
 
     const membership = await OrganizationMember.findOne({ userId: user._id });
 
+    const now = new Date();
+    // Only platform superadmins have unlimited views; contractor workspace owners are subject to the 5-tender 24h limit
+    const isPlatformAdmin = user.role === 'admin' || user.role === 'superadmin';
+    const viewsLimit = 5;
+    const currentExpiry = user.dailyTenderViews?.expiresAt ? new Date(user.dailyTenderViews.expiresAt).getTime() : 0;
+    const isWindowExpired = !user.dailyTenderViews || !currentExpiry || now.getTime() >= currentExpiry;
+
+    const tenderIds = isWindowExpired ? [] : (user.dailyTenderViews.tenderIds || []);
+    const viewsUsed = tenderIds.length;
+    const viewsRemaining = isPlatformAdmin ? 'Unlimited' : Math.max(0, viewsLimit - viewsUsed);
+    const expiresAt = isWindowExpired ? null : user.dailyTenderViews?.expiresAt;
+    const msRemaining = expiresAt ? Math.max(0, new Date(expiresAt).getTime() - now.getTime()) : null;
+
     return res.status(200).json({
       success: true,
       user: {
@@ -524,10 +583,17 @@ export const getMe = async (req, res, next) => {
         firstName: user.firstName,
         lastName: user.lastName,
         picture: user.picture,
-        role: membership?.role || user.role || 'contractor',
+        role: user.role || membership?.role || 'contractor',
         emailVerified: user.emailVerified,
         providers: user.providers,
         organizationId: membership?.organizationId,
+        dailyViews: {
+          viewsUsed,
+          viewsLimit: isPlatformAdmin ? 'Unlimited' : viewsLimit,
+          viewsRemaining,
+          resetsAt: expiresAt,
+          resetsInMs: msRemaining,
+        }
       },
     });
   } catch (error) {
