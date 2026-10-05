@@ -344,16 +344,35 @@ const resolveGoogleCallbackUrl = (req) => {
 };
 
 const resolveFrontendUrl = (req) => {
+  const host = req.get('host') || '';
+  const isProduction = host.includes('render.com') || env.NODE_ENV === 'production';
   const configured = (env.FRONTEND_URL || '').trim();
+
+  // If explicit frontendUrl was passed in query or request origin/referer
+  const incomingOrigin = (req?.query?.frontendUrl || req?.headers?.origin || '').trim().replace(/\/+$/, '');
+  if (incomingOrigin) {
+    if (incomingOrigin.includes('render.com') || (incomingOrigin.includes('localhost') && !isProduction)) {
+      return incomingOrigin;
+    }
+  }
+
   if (configured.includes(',')) {
     const urls = configured.split(',').map((u) => u.trim());
-    const host = req.get('host') || '';
-    if (host.includes('render.com')) {
-      return urls.find((u) => u.includes('render.com')) || urls[0];
+    if (isProduction) {
+      return urls.find((u) => u.includes('render.com')) || urls.find(u => !u.includes('localhost')) || urls[0];
     }
     return urls.find((u) => u.includes('localhost') || u.includes('127.0.0.1')) || urls[0];
   }
-  return configured || 'http://localhost:5173';
+
+  if (configured) {
+    // If backend is on production, never redirect to localhost even if configured is localhost
+    if (isProduction && (configured.includes('localhost') || configured.includes('127.0.0.1'))) {
+      return 'https://tenderhub-frontend-ur7t.onrender.com';
+    }
+    return configured;
+  }
+
+  return isProduction ? 'https://tenderhub-frontend-ur7t.onrender.com' : 'http://localhost:5173';
 };
 
 /**
@@ -371,9 +390,10 @@ export const googleAuth = async (req, res, next) => {
     }
 
     const mode = req.query.mode === 'signup' ? 'signup' : 'login';
+    const frontendUrl = resolveFrontendUrl(req);
     const redirectUri = resolveGoogleCallbackUrl(req);
     const state = crypto.randomBytes(16).toString('hex');
-    await redis.setex(`oauth_state:${state}`, 600, JSON.stringify({ mode, redirectUri }));
+    await redis.setex(`oauth_state:${state}`, 600, JSON.stringify({ mode, redirectUri, frontendUrl }));
 
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
@@ -399,14 +419,10 @@ export const googleAuth = async (req, res, next) => {
  * @route GET /api/v1/auth/google/callback
  */
 export const googleCallback = async (req, res, next) => {
-  const frontendRedirect = resolveFrontendUrl(req);
+  let frontendRedirect = resolveFrontendUrl(req);
 
   try {
     const { code, state, error } = req.query;
-
-    if (error || !code) {
-      return res.redirect(`${frontendRedirect}/login?error=${encodeURIComponent(error || 'google_cancelled')}`);
-    }
 
     if (!state) {
       return res.redirect(`${frontendRedirect}/login?error=missing_oauth_state`);
@@ -423,10 +439,15 @@ export const googleCallback = async (req, res, next) => {
       const parsed = JSON.parse(storedData);
       mode = parsed.mode || 'login';
       if (parsed.redirectUri) redirectUri = parsed.redirectUri;
+      if (parsed.frontendUrl) frontendRedirect = parsed.frontendUrl;
     } catch {
       mode = storedData;
     }
     await redis.del(`oauth_state:${state}`);
+
+    if (error || !code) {
+      return res.redirect(`${frontendRedirect}/login?error=${encodeURIComponent(error || 'google_cancelled')}`);
+    }
 
     // 1. Exchange authorization code for tokens via Google OAuth Token Endpoint
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {

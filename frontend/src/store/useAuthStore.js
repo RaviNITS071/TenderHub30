@@ -209,7 +209,9 @@ export const useAuthStore = create((set, get) => ({
    */
   loginWithGoogle: (mode = 'login') => {
     const backendUrl = api.defaults.baseURL || 'http://localhost:8000/api/v1';
-    window.location.href = `${backendUrl}/auth/google?mode=${mode}`;
+    const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const originParam = frontendOrigin ? `&frontendUrl=${encodeURIComponent(frontendOrigin)}` : '';
+    window.location.href = `${backendUrl}/auth/google?mode=${mode}${originParam}`;
   },
 
   /**
