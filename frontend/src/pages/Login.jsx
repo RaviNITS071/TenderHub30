@@ -356,7 +356,7 @@ export default function Login({ defaultMode }) {
               {/* Google OAuth Button */}
               <button
                 type="button"
-                onClick={() => loginWithGoogle(mode)}
+                onClick={() => loginWithGoogle(mode, searchParams.get('redirect') || '')}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold shadow-xs hover:border-slate-400 dark:hover:border-slate-600 transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-dalBlue/30"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">

@@ -390,10 +390,11 @@ export const googleAuth = async (req, res, next) => {
     }
 
     const mode = req.query.mode === 'signup' ? 'signup' : 'login';
+    const redirectPath = (req.query.redirect || req.query.returnTo || '/profile').trim();
     const frontendUrl = resolveFrontendUrl(req);
     const redirectUri = resolveGoogleCallbackUrl(req);
     const state = crypto.randomBytes(16).toString('hex');
-    await redis.setex(`oauth_state:${state}`, 600, JSON.stringify({ mode, redirectUri, frontendUrl }));
+    await redis.setex(`oauth_state:${state}`, 600, JSON.stringify({ mode, redirectUri, frontendUrl, redirectPath }));
 
     const params = new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
@@ -435,11 +436,12 @@ export const googleCallback = async (req, res, next) => {
 
     let mode = 'login';
     let redirectUri = resolveGoogleCallbackUrl(req);
+    let parsedState = {};
     try {
-      const parsed = JSON.parse(storedData);
-      mode = parsed.mode || 'login';
-      if (parsed.redirectUri) redirectUri = parsed.redirectUri;
-      if (parsed.frontendUrl) frontendRedirect = parsed.frontendUrl;
+      parsedState = JSON.parse(storedData);
+      mode = parsedState.mode || 'login';
+      if (parsedState.redirectUri) redirectUri = parsedState.redirectUri;
+      if (parsedState.frontendUrl) frontendRedirect = parsedState.frontendUrl;
     } catch {
       mode = storedData;
     }
@@ -571,8 +573,12 @@ export const googleCallback = async (req, res, next) => {
     // 7. Attach session cookies to response
     setAuthCookies(res, appAccessToken, appRefreshToken);
 
-    // 8. Redirect user back to frontend dashboard
-    return res.redirect(`${frontendRedirect}/profile?auth=success`);
+    // 8. Redirect user back to frontend dashboard with token for seamless cross-domain SPA hydration
+    const targetPath = (parsedState?.redirectPath && parsedState.redirectPath.startsWith('/'))
+      ? parsedState.redirectPath 
+      : '/profile';
+    const glue = targetPath.includes('?') ? '&' : '?';
+    return res.redirect(`${frontendRedirect}${targetPath}${glue}token=${encodeURIComponent(appAccessToken)}&auth=success`);
   } catch (error) {
     next(error);
   }

@@ -37,6 +37,26 @@ export const isProUser = (user) => {
   );
 };
 
+export const extractTokenFromUrl = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token');
+    if (token && token.split('.').length === 3) {
+      localStorage.setItem('token', token);
+      url.searchParams.delete('token');
+      url.searchParams.delete('auth');
+      const newQuery = url.searchParams.toString() ? `?${url.searchParams.toString()}` : '';
+      window.history.replaceState({}, document.title, url.pathname + newQuery + url.hash);
+      return token;
+    }
+  } catch {}
+  return null;
+};
+
+// Immediate extraction on module load
+extractTokenFromUrl();
+
 const loadCachedUser = () => {
   if (isTestMode) return defaultTestUser;
   try {
@@ -55,14 +75,14 @@ const AUTH_CACHE_TTL = 30000; // 30 seconds memory cache
 
 export const useAuthStore = create((set, get) => ({
   user: initialCachedUser,
-  isAuthenticated: isTestMode ? true : Boolean(initialCachedUser),
+  isAuthenticated: isTestMode ? true : Boolean(initialCachedUser || localStorage.getItem('token')),
   isPro: isTestMode ? true : isProUser(initialCachedUser),
-  isLoading: isTestMode ? false : !initialCachedUser,
+  isLoading: isTestMode ? false : (!initialCachedUser && Boolean(localStorage.getItem('token'))),
   error: null,
 
   /**
-   * Check session on application boot by calling /auth/me with HttpOnly cookies.
-   * Deduplicates concurrent calls and caches results for 30s.
+   * Check session on application boot by calling /auth/me.
+   * Extracts URL token if present and deduplicates concurrent calls.
    */
   checkAuth: async (force = false) => {
     if (isTestMode) {
@@ -75,9 +95,12 @@ export const useAuthStore = create((set, get) => ({
       return defaultTestUser;
     }
 
+    const urlToken = extractTokenFromUrl();
+    const shouldForce = force || Boolean(urlToken);
+
     const now = Date.now();
     // Return cached user if checked recently and not forced
-    if (!force && get().user && (now - lastCheckAuthTime < AUTH_CACHE_TTL)) {
+    if (!shouldForce && get().user && (now - lastCheckAuthTime < AUTH_CACHE_TTL)) {
       return get().user;
     }
 
@@ -207,11 +230,13 @@ export const useAuthStore = create((set, get) => ({
    * Trigger the server-side Google OAuth 2.0 flow.
    * Supports mode: 'login' | 'signup'
    */
-  loginWithGoogle: (mode = 'login') => {
+  loginWithGoogle: (mode = 'login', redirectPath = '') => {
     const backendUrl = api.defaults.baseURL || 'http://localhost:8000/api/v1';
     const frontendOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const currentRedirect = redirectPath || (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') : '') || '';
     const originParam = frontendOrigin ? `&frontendUrl=${encodeURIComponent(frontendOrigin)}` : '';
-    window.location.href = `${backendUrl}/auth/google?mode=${mode}${originParam}`;
+    const redirectParam = currentRedirect ? `&redirect=${encodeURIComponent(currentRedirect)}` : '';
+    window.location.href = `${backendUrl}/auth/google?mode=${mode}${originParam}${redirectParam}`;
   },
 
   /**
