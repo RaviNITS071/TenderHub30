@@ -13,6 +13,7 @@ import Otp from '../models/Otp.js';
 import Organization from '../models/Organization.js';
 import OrganizationMember from '../models/OrganizationMember.js';
 import ContractorProfile from '../models/ContractorProfile.js';
+import Subscription from '../modules/billing/models/Subscription.js';
 import { 
   hashPassword, 
   comparePassword, 
@@ -312,19 +313,34 @@ export const verifyOtp = async (req, res, next) => {
  * Safely strips any comma-separated entries in env.GOOGLE_CALLBACK_URL.
  */
 const resolveGoogleCallbackUrl = (req) => {
+  const host = req.get('host') || '';
   const configured = (env.GOOGLE_CALLBACK_URL || '').trim();
+
+  // If comma-separated list of URLs is provided in env
   if (configured.includes(',')) {
     const urls = configured.split(',').map((u) => u.trim());
-    const host = req.get('host') || '';
     const matched = urls.find((u) => u.includes(host));
     if (matched) return matched;
-    return env.NODE_ENV === 'production' ? (urls[1] || urls[0]) : urls[0];
+    return env.NODE_ENV === 'production' 
+      ? (urls.find(u => !u.includes('localhost')) || urls[0]) 
+      : urls[0];
   }
+
+  // If a single URL was configured, only use it if its host matches the current request
   if (configured) {
-    return configured;
+    try {
+      const parsed = new URL(configured);
+      if (parsed.host === host) {
+        return configured;
+      }
+    } catch {
+      // invalid URL string, fallback to dynamic below
+    }
   }
+
+  // Dynamic fallback based on current protocol & host
   const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-  return `${protocol}://${req.get('host')}/api/v1/auth/google/callback`;
+  return `${protocol}://${host}/api/v1/auth/google/callback`;
 };
 
 const resolveFrontendUrl = (req) => {
@@ -562,16 +578,23 @@ export const getMe = async (req, res, next) => {
     const membership = await OrganizationMember.findOne({ userId: user._id });
 
     const now = new Date();
-    // Only platform superadmins have unlimited views; contractor workspace owners are subject to the 5-tender 24h limit
-    const isPlatformAdmin = user.role === 'admin' || user.role === 'superadmin';
-    const viewsLimit = 5;
+    // Check if user has an active Pro subscription or admin privilege
+    const isPlatformAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'owner';
+    const activeSub = await Subscription.findOne({
+      userId: user._id,
+      status: 'active',
+      currentPeriodEnd: { $gt: now },
+    });
+    const isPro = !!activeSub || isPlatformAdmin;
+
+    const viewsLimit = isPro ? 'Unlimited' : 5;
     const currentExpiry = user.dailyTenderViews?.expiresAt ? new Date(user.dailyTenderViews.expiresAt).getTime() : 0;
     const isWindowExpired = !user.dailyTenderViews || !currentExpiry || now.getTime() >= currentExpiry;
 
     const tenderIds = isWindowExpired ? [] : (user.dailyTenderViews.tenderIds || []);
-    const viewsUsed = tenderIds.length;
-    const viewsRemaining = isPlatformAdmin ? 'Unlimited' : Math.max(0, viewsLimit - viewsUsed);
-    const expiresAt = isWindowExpired ? null : user.dailyTenderViews?.expiresAt;
+    const viewsUsed = isPro ? 0 : tenderIds.length;
+    const viewsRemaining = isPro ? 'Unlimited' : Math.max(0, viewsLimit - viewsUsed);
+    const expiresAt = (isWindowExpired || isPro) ? null : user.dailyTenderViews?.expiresAt;
     const msRemaining = expiresAt ? Math.max(0, new Date(expiresAt).getTime() - now.getTime()) : null;
 
     return res.status(200).json({
@@ -587,9 +610,16 @@ export const getMe = async (req, res, next) => {
         emailVerified: user.emailVerified,
         providers: user.providers,
         organizationId: membership?.organizationId,
+        isPro,
+        hasActiveSubscription: !!activeSub,
+        subscription: activeSub ? {
+          planId: activeSub.planId,
+          status: activeSub.status,
+          currentPeriodEnd: activeSub.currentPeriodEnd,
+        } : null,
         dailyViews: {
           viewsUsed,
-          viewsLimit: isPlatformAdmin ? 'Unlimited' : viewsLimit,
+          viewsLimit,
           viewsRemaining,
           resetsAt: expiresAt,
           resetsInMs: msRemaining,

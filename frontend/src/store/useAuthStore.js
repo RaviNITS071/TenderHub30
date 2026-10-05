@@ -23,46 +23,111 @@ const defaultTestUser = {
   }
 };
 
+export const isProUser = (user) => {
+  if (isTestMode) return true;
+  if (!user) return false;
+  return Boolean(
+    user.isPro ||
+    user.hasActiveSubscription ||
+    user.subscription?.status === 'active' ||
+    user.role === 'admin' ||
+    user.role === 'superadmin' ||
+    user.role === 'owner' ||
+    user.dailyViews?.viewsLimit === 'Unlimited'
+  );
+};
+
+const loadCachedUser = () => {
+  if (isTestMode) return defaultTestUser;
+  try {
+    const raw = localStorage.getItem('tenderhub_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+const initialCachedUser = loadCachedUser();
+
+let checkAuthPromise = null;
+let lastCheckAuthTime = 0;
+const AUTH_CACHE_TTL = 30000; // 30 seconds memory cache
+
 export const useAuthStore = create((set, get) => ({
-  user: isTestMode ? defaultTestUser : null,
-  isAuthenticated: isTestMode ? true : false,
-  isLoading: isTestMode ? false : true,
+  user: initialCachedUser,
+  isAuthenticated: isTestMode ? true : Boolean(initialCachedUser),
+  isPro: isTestMode ? true : isProUser(initialCachedUser),
+  isLoading: isTestMode ? false : !initialCachedUser,
   error: null,
 
   /**
    * Check session on application boot by calling /auth/me with HttpOnly cookies.
+   * Deduplicates concurrent calls and caches results for 30s.
    */
-  checkAuth: async () => {
+  checkAuth: async (force = false) => {
     if (isTestMode) {
       set({
         user: defaultTestUser,
         isAuthenticated: true,
+        isPro: true,
         isLoading: false,
       });
       return defaultTestUser;
     }
 
-    try {
-      set({ isLoading: true, error: null });
-      const res = await api.get('/auth/me');
-      if (res.data?.success && res.data?.user) {
-        set({
-          user: res.data.user,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-        // Populate contractor-scoped bookmarks from MongoDB
-        useBookmarkStore.getState().fetchSavedTenders();
-        return res.data.user;
-      } else {
-        set({ user: null, isAuthenticated: false, isLoading: false });
-        return null;
-      }
-    } catch (err) {
-      // 401 is normal for unauthenticated guests, do not treat as fatal error
-      set({ user: null, isAuthenticated: false, isLoading: false });
-      return null;
+    const now = Date.now();
+    // Return cached user if checked recently and not forced
+    if (!force && get().user && (now - lastCheckAuthTime < AUTH_CACHE_TTL)) {
+      return get().user;
     }
+
+    // Deduplicate concurrent in-flight requests
+    if (checkAuthPromise) {
+      return checkAuthPromise;
+    }
+
+    checkAuthPromise = (async () => {
+      try {
+        const res = await api.get('/auth/me');
+        if (res.data?.success && res.data?.user) {
+          const user = res.data.user;
+          const isPro = isProUser(user);
+          try {
+            localStorage.setItem('tenderhub_user', JSON.stringify(user));
+          } catch {}
+          lastCheckAuthTime = Date.now();
+          set({
+            user,
+            isAuthenticated: true,
+            isPro,
+            isLoading: false,
+            error: null,
+          });
+          // Populate contractor-scoped bookmarks from MongoDB
+          useBookmarkStore.getState().fetchSavedTenders();
+          return user;
+        } else {
+          try {
+            localStorage.removeItem('tenderhub_user');
+          } catch {}
+          set({ user: null, isAuthenticated: false, isPro: false, isLoading: false });
+          return null;
+        }
+      } catch (err) {
+        // 401 is normal for unauthenticated guests, do not treat as fatal error
+        if (err.response?.status === 401) {
+          try {
+            localStorage.removeItem('tenderhub_user');
+          } catch {}
+          set({ user: null, isAuthenticated: false, isPro: false, isLoading: false });
+        }
+        return null;
+      } finally {
+        checkAuthPromise = null;
+      }
+    })();
+
+    return checkAuthPromise;
   },
 
   /**
@@ -114,14 +179,21 @@ export const useAuthStore = create((set, get) => ({
         if (res.data.accessToken) {
           localStorage.setItem('token', res.data.accessToken);
         }
+        const user = res.data.user;
+        const isPro = isProUser(user);
+        try {
+          localStorage.setItem('tenderhub_user', JSON.stringify(user));
+        } catch {}
+        lastCheckAuthTime = Date.now();
         set({
-          user: res.data.user,
+          user,
           isAuthenticated: true,
+          isPro,
           isLoading: false,
         });
         // Sync any guest bookmarks and load contractor's persistent list
         useBookmarkStore.getState().syncWithBackend();
-        return { success: true, user: res.data.user };
+        return { success: true, user };
       }
       return { success: false, error: 'Verification failed.' };
     } catch (err) {
@@ -146,16 +218,21 @@ export const useAuthStore = create((set, get) => ({
   logout: async () => {
     try {
       localStorage.removeItem('token');
+      localStorage.removeItem('tenderhub_user');
+      lastCheckAuthTime = 0;
       await api.post('/auth/logout');
     } catch (err) {
       console.warn('Logout request failed:', err);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('tenderhub_user');
+      lastCheckAuthTime = 0;
       // Clear contractor-scoped bookmarks from local memory
       useBookmarkStore.getState().clearBookmarks();
       set({
         user: null,
         isAuthenticated: false,
+        isPro: false,
         isLoading: false,
         error: null,
       });

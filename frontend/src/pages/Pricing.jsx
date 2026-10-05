@@ -23,7 +23,7 @@ import { billingApi } from '@/services/billingApi';
 import { notificationApi } from '@/services/notificationApi';
 
 export default function Pricing() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, checkAuth } = useAuthStore();
   const navigate = useNavigate();
 
   const [subscription, setSubscription] = useState(null);
@@ -142,6 +142,7 @@ export default function Pricing() {
               setSuccessMessage(`🎉 Payment verified! ${selectedPlan.name} activated successfully. Receipt and alert onboarding sent to WhatsApp ${cleanPhone}.`);
               const updatedSub = await billingApi.getStatus();
               setSubscription(updatedSub);
+              checkAuth();
             }
           } catch (err) {
             setErrorMessage(err.response?.data?.message || 'Payment verification failed.');

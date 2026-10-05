@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Landmark, Heart, User, Menu, X, Sun, Moon, LogIn, LogOut } from 'lucide-react';
+import { Landmark, Heart, User, Menu, X, Sun, Moon, LogIn, LogOut, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useBookmarkStore } from '@/store/useBookmarkStore';
@@ -19,7 +19,7 @@ export function Navbar() {
 
   // Subscribe to global stores
   const savedTenders = useBookmarkStore((state) => state.savedTenders);
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, isPro, logout } = useAuthStore();
 
   const navLinks = [
     { label: 'Home', path: '/' },
@@ -34,19 +34,21 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
         {/* Institutional Brand Identity */}
-        <Link to="/" className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <Link to="/" className="flex items-center gap-2.5 sm:gap-3 shrink-0 group">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-dalBlue text-white flex items-center justify-center shadow-xs shrink-0">
             <Landmark className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="text-base sm:text-lg font-display font-black tracking-tight text-dalBlue dark:text-white leading-none">
                 Tender<span className="text-chinarRed">Hub</span>
               </span>
-              <span className="text-[9px] sm:text-[10px] font-semibold tracking-wide bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-700">
-                J&amp;K
-              </span>
-              {(import.meta.env.VITE_TEST_MODE === 'true' || (typeof window !== 'undefined' && window.location.port === '5175')) && (
+              {isPro && (
+                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-black tracking-wider rounded-md bg-[#ECEEF2] dark:bg-slate-800 text-[#1E293B] dark:text-slate-100 border border-[#D5D8DF] dark:border-slate-700 shadow-2xs select-none">
+                  PRO
+                </span>
+              )}
+              {(import.meta.env.VITE_TEST_MODE === 'true' || (typeof window !== 'undefined' && window.location.port === '5175')) && !isPro && (
                 <span className="text-[9px] sm:text-[10px] font-bold tracking-wide bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full border border-purple-300 dark:border-purple-800">
                   TEST PORT 5175 (NO LOGIN)
                 </span>
@@ -113,7 +115,11 @@ export function Navbar() {
             <div className="flex items-center gap-1 sm:gap-2">
               <Link
                 to="/profile"
-                className="hidden sm:inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-dalBlue dark:text-slate-200 hover:border-dalBlue dark:hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700/60 shadow-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed"
+                className={`hidden sm:inline-flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold shadow-xs transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
+                  isPro
+                    ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-300 dark:border-amber-600/60 text-dalBlue dark:text-amber-200 hover:border-amber-400'
+                    : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-dalBlue dark:text-slate-200 hover:border-dalBlue dark:hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                }`}
                 title={user?.email}
               >
                 {user?.picture ? (
@@ -124,13 +130,20 @@ export function Navbar() {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="w-4 h-4 rounded-full bg-dalBlue/10 dark:bg-blue-500/20 text-dalBlue dark:text-blue-300 text-[10px] font-bold flex items-center justify-center shrink-0">
+                  <div className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
+                    isPro ? 'bg-amber-500 text-white' : 'bg-dalBlue/10 dark:bg-blue-500/20 text-dalBlue dark:text-blue-300'
+                  }`}>
                     {(user?.name || user?.email || 'U')[0].toUpperCase()}
                   </div>
                 )}
                 <span className="max-w-[70px] md:max-w-[100px] lg:max-w-[130px] truncate">
                   {user?.name || user?.email?.split('@')[0] || 'Contractor'}
                 </span>
+                {isPro && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-md bg-[#ECEEF2] dark:bg-slate-800 text-[#1E293B] dark:text-slate-100 border border-[#D5D8DF] dark:border-slate-700 shadow-2xs select-none">
+                    PRO
+                  </span>
+                )}
               </Link>
 
               <button

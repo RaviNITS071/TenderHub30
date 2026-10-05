@@ -23,132 +23,228 @@ import {
   Building2,
   Calendar,
   X,
-  Lock,
-  Eye,
-  Sparkles
+  Eye, 
+  Sparkles,
+  Briefcase,
+  FileCheck
 } from 'lucide-react';
 
 import { useTenders } from '@/hooks/useTenders';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TenderCard } from '@/components/shared/TenderCard';
 import { AuthPromptModal } from '@/components/shared/AuthPromptModal';
+import { DailyAccessMeter } from '@/components/shared/DailyAccessMeter';
 import { useAuthStore } from '@/store/useAuthStore';
-import { billingApi } from '@/services/billingApi';
 import { Input } from '@/components/ui/Input';
 import { Select, SelectTrigger, SelectItem } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 
-// Static filter datasets mapped to government e-procurement nomenclature
+// =============================================================================
+// Comprehensive Filter Datasets Verified Against MongoDB Aggregation
+// =============================================================================
+
+// 1. All 20 Verified Administrative Districts of Jammu & Kashmir
 const DISTRICT_OPTIONS = [
   { label: 'All Districts & Regions', value: '' },
-  { label: 'Baramulla', value: 'Baramulla' },
-  { label: 'Bandipora', value: 'Bandipora' },
-  { label: 'Srinagar', value: 'Srinagar' },
-  { label: 'Jammu', value: 'Jammu' },
-  { label: 'Pulwama', value: 'Pulwama' },
   { label: 'Anantnag', value: 'Anantnag' },
-  { label: 'Kulgam', value: 'Kulgam' },
+  { label: 'Bandipora', value: 'Bandipora' },
+  { label: 'Baramulla', value: 'Baramulla' },
   { label: 'Budgam', value: 'Budgam' },
-  { label: 'Kupwara', value: 'Kupwara' },
-  { label: 'Ganderbal', value: 'Ganderbal' },
-  { label: 'Shopian', value: 'Shopian' },
-  { label: 'Udhampur', value: 'Udhampur' },
-  { label: 'Reasi', value: 'Reasi' },
-  { label: 'Kathua', value: 'Kathua' },
-  { label: 'Samba', value: 'Samba' },
-  { label: 'Rajouri', value: 'Rajouri' },
-  { label: 'Poonch', value: 'Poonch' },
   { label: 'Doda', value: 'Doda' },
-  { label: 'Ramban', value: 'Ramban' },
+  { label: 'Ganderbal', value: 'Ganderbal' },
+  { label: 'Jammu', value: 'Jammu' },
+  { label: 'Kathua', value: 'Kathua' },
   { label: 'Kishtwar', value: 'Kishtwar' },
+  { label: 'Kulgam', value: 'Kulgam' },
+  { label: 'Kupwara', value: 'Kupwara' },
+  { label: 'Poonch', value: 'Poonch' },
+  { label: 'Pulwama', value: 'Pulwama' },
+  { label: 'Rajouri', value: 'Rajouri' },
+  { label: 'Ramban', value: 'Ramban' },
+  { label: 'Reasi', value: 'Reasi' },
+  { label: 'Samba', value: 'Samba' },
+  { label: 'Shopian', value: 'Shopian' },
+  { label: 'Srinagar', value: 'Srinagar' },
+  { label: 'Udhampur', value: 'Udhampur' },
 ];
 
+// 2. Nature of Procurement / Tender Category (Works, Goods, Services)
+const PROCUREMENT_TYPE_OPTIONS = [
+  { label: 'All Procurement Types', value: '' },
+  { label: 'Works Contracts (Civil / Engineering)', value: 'Works' },
+  { label: 'Goods & Equipment Supplies', value: 'Goods' },
+  { label: 'Services & Operations', value: 'Services' },
+];
+
+// 3. All 38 Distinct Work Categories / Product Domains in MongoDB
 const CATEGORY_OPTIONS = [
   { label: 'All Work Categories', value: '' },
-  { label: 'Civil Works', value: 'Civil Works' },
+  { label: 'Civil Works (Buildings, Roads & General)', value: 'Civil Works' },
   { label: 'Electrical Works', value: 'Electrical Works' },
-  { label: 'Water Equipments & Boring', value: 'Water Equipments/ Meter/ Drilling/ Boring' },
-  { label: 'Electrical & Maintenance', value: 'Electrical and Maintenance Works' },
-  { label: 'Civil Works - Others', value: 'Civil Works - Others' },
-  { label: 'Medicines & Health Supplies', value: 'Medicines' },
+  { label: 'Drilling Works & Boring', value: 'Drilling Works' },
+  { label: 'Medical Equipments & Bio-Waste', value: 'Medical Equipments/Waste' },
+  { label: 'Machineries & Mechanical Engg Items', value: 'Machineries/ Mechanical Engg Items' },
+  { label: 'Agricultural or Forestry Works', value: 'Agricultural or Forestry' },
   { label: 'Miscellaneous Services', value: 'Miscellaneous Services' },
-  { label: 'Miscellaneous Goods', value: 'Miscellaneous Goods' },
+  { label: 'Repair & Maintenance Works', value: 'Repair and Maintenance Works' },
+  { label: 'Civil Works - Others', value: 'Civil Works - Others' },
+  { label: 'Miscellaneous Works', value: 'Miscellaneous Works' },
+  { label: 'Civil Works - Canal & Irrigation', value: 'Civil Works - Canal' },
+  { label: 'Electrical and Maintenance Works', value: 'Electrical and Maintenance Works' },
+  { label: 'Supply of Materials & Aggregate', value: 'Supply of Materials' },
+  { label: 'Civil Works - Roads & Macadamization', value: 'Civil Works - Roads' },
+  { label: 'Miscellaneous Goods & Hardware', value: 'Miscellaneous Goods' },
+  { label: 'Consultancy & Technical Advisory', value: 'Consultancy' },
+  { label: 'Repair and Maintenance Services', value: 'Repair and Maintenance Services' },
+  { label: 'Civil Works - Water Works & Distribution', value: 'Civil Works - Water Works' },
+  { label: 'Civil Construction Goods', value: 'Civil Construction Goods' },
+  { label: 'Suture & Surgical Products', value: 'Suture and related products' },
+  { label: 'Shipping / Transportation / Vehicles', value: 'Shipping/ Transportation/ Vehicle' },
+  { label: 'Electrical Goods & Equipments', value: 'Electrical Goods/Equipments' },
+  { label: 'Land & Building Infrastructure', value: 'Land/Building' },
+  { label: 'Medicines & Pharmaceuticals', value: 'Medicines' },
+  { label: 'Food Products & Ration Supply', value: 'Food Products' },
+  { label: 'Water Equipments / Meters / Boring', value: 'Water Equipments/ Meter/ Drilling/ Boring' },
+  { label: 'Hotel & Catering Services', value: 'Hotel/ Catering' },
+  { label: 'Audio-Visual & Studio Equipment', value: 'Audio-Visual Equipment' },
+  { label: 'Network & Communication Equipments', value: 'Network /Communication Equipments' },
+  { label: 'Consumables (Hospital / Lab)', value: 'Consumables (Hospital / Lab)' },
+  { label: 'Topographical & Land Survey', value: 'Survey' },
+  { label: 'Pumps & Electric Motors', value: 'Pumps/Motors' },
+  { label: 'Electronics & Computing Equipment', value: 'Electronics Equipment' },
+  { label: 'Machineries & Mechanical Engg Works', value: 'Machineries/ Mechanical Engg Works' },
+  { label: 'Support & Maintenance Services', value: 'Support/Maintenance Service' },
+  { label: 'Furniture & Fixture', value: 'Furniture/ Fixture' },
+  { label: 'Printing & Stationery', value: 'Stationery' },
+  { label: 'Lift Irrigation Schemes', value: 'Civil Works - Lift Irrigation Schemes' },
+  { label: 'Housekeeping & Sanitation', value: 'Housekeeping/ Cleaning' },
+  { label: 'Mechanical Engineering Items', value: 'Mechanical Engineering Items' },
+  { label: 'Chemicals & Minerals', value: 'Chemicals/Minerals' },
 ];
 
+// 4. All 33 Verified Government Authorities & Departments in MongoDB
 const AUTHORITY_OPTIONS = [
   { label: 'All Government Authorities', value: '' },
-  { label: 'Rural Development & Panchayati Raj', value: 'Rural Development' },
-  { label: 'Public Works Department (PWD)', value: 'PWD' },
-  { label: 'Housing & Urban Development (HAUDD)', value: 'HAUDD' },
+  { label: 'Rural Development & Panchayati Raj (RDPR)', value: 'Rural Development' },
+  { label: 'Public Works Department (PWD / R&B)', value: 'PWD' },
   { label: 'Irrigation & Flood Control (I and FC)', value: 'I and FC' },
-  { label: 'Power Development Dept (DC-PDD)', value: 'DC-PDD' },
+  { label: 'Housing & Urban Development (HAUDD / SMC / JMC)', value: 'HAUDD' },
   { label: 'Jal Shakti / PHE Department', value: 'PHE' },
   { label: 'Forest Department', value: 'FOREST DEPARTMENT' },
-  { label: 'Health & Medical Education', value: 'Health and Medical Education' },
+  { label: 'Power Development Dept (DC-PDD / KPDCL / JPDCL)', value: 'DC-PDD' },
   { label: 'Soil & Water Conservation Dept', value: 'Soil and Water Conservation' },
+  { label: 'Health & Medical Education (HME / JKMSCL)', value: 'Health and Medical Education' },
   { label: 'Power Development Corp (JKSPDC)', value: 'JKSPDC' },
-  { label: 'Universities & Higher Education', value: 'University Department' },
-  { label: 'SKUAST Agriculture University', value: 'SKUAST' },
   { label: 'Police Headquarters (DGP-JK)', value: 'DGP-JK' },
   { label: 'Forest Development Corp (JKSFC)', value: 'JKSFC' },
-  { label: 'Shri Mata Vaishno Devi Shrine Board', value: 'SHRI MATA VAISHNO DEVI' },
-  { label: 'Tourism Department', value: 'Tourism' },
-  { label: 'Agriculture Production Department', value: 'AGRICULTURE PRODUCTION' },
-  { label: 'Industries & Commerce (SICOP)', value: 'SICOP' },
+  { label: 'Agriculture Production Department (HADP / JKCIP)', value: 'AGRICULTURE PRODUCTION' },
+  { label: 'Shri Mata Vaishno Devi Shrine Board (SMVDSB)', value: 'SHRI MATA VAISHNO DEVI' },
+  { label: 'SKUAST Agriculture University', value: 'SKUAST' },
+  { label: 'Universities & Higher Education', value: 'University Department' },
   { label: 'J&K Sports Council', value: 'Sports Council' },
+  { label: 'Tourism Department', value: 'Tourism' },
+  { label: 'SKIMS (Medical Institute Soura)', value: 'SKIMS' },
   { label: 'Horticulture Production Dept', value: 'Horticulture' },
+  { label: 'Small Scale Industries Development Corp (SICOP)', value: 'SICOP' },
+  { label: 'Jammu Smart City Limited', value: 'Jammu Smart City' },
+  { label: 'J&K AGRO Industries', value: 'J and K AGRO' },
+  { label: 'Shri Mata Vaishno Devi University (SMVDU)', value: 'SMVDU' },
+  { label: 'State Industrial Development Corp (SIDCO)', value: 'SIDCO' },
+  { label: 'Floriculture Department', value: 'Floriculture' },
+  { label: 'J&K Services Selection Board (JKSSB)', value: 'Selection Board' },
+  { label: 'DG Prisons J&K', value: 'DG-PRISONS' },
+  { label: 'Higher Education Department', value: 'HIGHER EDUCATION' },
+  { label: 'Srinagar Smart City Limited', value: 'Srinagar Smart City' },
+  { label: 'J&K State Cable Car Corp', value: 'CABLE CAR' },
+  { label: 'Animal & Sheep Husbandry (ASH)', value: 'ASH' },
+  { label: 'State Procurement & Supplies Agency (SPSA)', value: 'State Procurement' },
 ];
 
+// 5. Verified Engineering & Administrative Divisions from MongoDB
 const DIVISION_OPTIONS = [
   { label: 'All Divisions & Wings', value: '' },
-  { label: 'Directorate Agriculture Kashmir', value: 'Directorate Agriculture Kashmir' },
-  { label: 'Agriculture District Baramulla', value: 'Department of Agriculture District Baramulla' },
-  { label: 'Command Area Development Pulwama', value: 'CAD Division Pulwama' },
-  { label: 'Soil Conservation Anantnag/Kulgam', value: 'Asstt Soil Conservation Officer Anantnag' },
-  { label: 'HADP / JKCIP Directorate', value: 'Mission Directorate HADP' },
-  { label: 'CE-M & RE Wing Kashmir', value: 'CE-M and RE Wing Kashmir' },
-  { label: 'CIRCLE II-Srinagar (ED-3rd)', value: 'CIRCLE II-Srinagar' },
-  { label: 'ED-Anantnag & Bijbehara', value: 'ED-Anantnag' },
-  { label: 'ED-Kulgam', value: 'ED-Kulgam' },
-  { label: 'ED-Pulwama & Shopian', value: 'South Pulwama' },
-  { label: 'CE-M & RE Wing Jammu', value: 'CE-M and RE Wing Jammu' },
-  { label: 'STD-II Jammu', value: 'STD-II Jammu' },
-  { label: 'ED-Rajouri & Batote', value: 'ED-Rajouri' },
-  { label: 'ED-Udhampur', value: 'ED-Udhampur' },
-  { label: 'Animal Husbandry Jammu', value: 'Animal Husbandry Jammu' },
-  { label: 'Director Fisheries', value: 'DIRECTOR FISHERIES' },
+  { label: 'XEN REW Baramulla', value: 'REW Baramulla' },
+  { label: 'XEN REW Budgam', value: 'REW Budgam' },
+  { label: 'XEN REW Poonch', value: 'REW POONCH' },
+  { label: 'XEN REW Anantnag', value: 'REW Anantnag' },
+  { label: 'XEN REW Jammu', value: 'REW JAMMU' },
+  { label: 'XEN REW Pulwama', value: 'REW Pulwama' },
+  { label: 'XEN REW Doda', value: 'REW DODA' },
+  { label: 'XEN REW Kishtwar', value: 'REW KISHTWAR' },
+  { label: 'XEN REW Reasi', value: 'REW REASI' },
+  { label: 'XEN REW Udhampur', value: 'REW UDHAMPUR' },
+  { label: 'XEN REW Samba', value: 'REW SAMBA' },
+  { label: 'XEN REW Bandipora', value: 'REW Bandipora' },
+  { label: 'XEN REW Ramban', value: 'REW RAMBAN' },
+  { label: 'XEN REW Kathua', value: 'REW KATHUA' },
+  { label: 'XEN REW Kupwara', value: 'REW Kupwara' },
+  { label: 'XEN REW Kulgam', value: 'REW Kulgam' },
+  { label: 'XEN REW Srinagar', value: 'REW Srinagar' },
+  { label: 'JK Medical Supplies Corp (JKMSCL)', value: 'JK MEDICAL SUPPLIES' },
+  { label: 'City Roads Division Srinagar', value: 'City Roads Division' },
+  { label: 'Srinagar Municipal Corporation (SMC)', value: 'SMC' },
+  { label: 'Jammu Municipal Corporation (JMC)', value: 'Jammu Municipal' },
+  { label: 'Ground Water Division (GWD)', value: 'Ground Water' },
+  { label: 'Mechanical GWD Division Jammu', value: 'Mech GWD' },
+  { label: 'EE R&B Provincial Division 3rd Srinagar', value: 'PD 3rd' },
+  { label: 'SE R&B Circle Poonch', value: 'SE RandB Poonch' },
+  { label: 'EE R&B Ramban', value: 'RandB Ramban' },
+  { label: 'EE R&B Satwari', value: 'RandB Satwari' },
+  { label: 'EE R&B Surankote', value: 'RandB Surankote' },
+  { label: 'EE R&B Thanamandi', value: 'RandB Thanamandi' },
+  { label: 'EE R&B Doda', value: 'RandB Doda' },
+  { label: 'EE R&B Bhaderwah', value: 'RandB Bhaderwah' },
+  { label: 'PWD R&B Rajouri Division', value: 'Rajouri Division' },
+  { label: 'PWD R&B Anantnag Division', value: 'Anantnag Division' },
+  { label: 'PWD R&B Budgam Division', value: 'Budgam Division' },
+  { label: 'PWD R&B Pulwama Division', value: 'Pulwama Division' },
+  { label: 'PWD R&B Kulgam Division', value: 'Kulgam Division' },
+  { label: 'PWD R&B Baramulla Division', value: 'Baramulla Division' },
+  { label: 'PWD R&B Dooru Division', value: 'Dooru Division' },
+  { label: 'PWD R&B Lolab Division', value: 'Lolab Division' },
+  { label: 'PWD R&B Gurez Division', value: 'Gurez Division' },
+  { label: 'PWD R&B Pahalgam Division', value: 'Pahalgam Division' },
+  { label: 'R&B Electric Division Kashmir', value: 'Electric Division Kashmir' },
+  { label: 'PW R&B Electric Division Jammu', value: 'Electric Div Jammu' },
+  { label: 'DSCO Poonch (Soil Conservation)', value: 'DSCO Poonch' },
+  { label: 'DSCO Kathua (Soil Conservation)', value: 'DSCO Kathua' },
+  { label: 'DSCO Jammu (Soil Conservation)', value: 'DSCO Jammu' },
+  { label: 'Director Soil & Water Conservation', value: 'Director soil and water' },
+  { label: 'Irrigation Division 1 Jammu', value: 'ID-1 Jammu' },
+  { label: 'Irrigation Division 2 Jammu', value: 'ID-2 Jammu' },
+  { label: 'Irrigation Division Kulgam', value: 'Irrigation Divn Kulgam' },
+  { label: 'Tube Well Irrigation Div (T.W.I.D) Jammu', value: 'T.W.I.D Jammu' },
+  { label: 'Irrigation Kangan Division', value: 'Kangan Division' },
+  { label: 'Electric Division (ED) Kupwara', value: 'ED Kupwara' },
+  { label: 'CE-M & RE Wing Kashmir (PDD)', value: 'CE-M and RE Wing Kashmir' },
+  { label: 'Lidder Forest Division (DFO Lidder)', value: 'DFO Lidder' },
+  { label: 'Rajouri Forest Division', value: 'Rajouri Forest' },
+  { label: 'Jammu Hospital & Central Heating Div', value: 'Jammu Hospital and Central Heating' },
+  { label: 'Directorate Urban Local Bodies Jammu', value: 'Urban Local Bodies Jammu' },
+  { label: 'Rural Division Jammu', value: 'Rural Division Jammu' },
 ];
 
+// 6. Contract Agreement Types
+const CONTRACT_TYPE_OPTIONS = [
+  { label: 'All Contract Forms', value: '' },
+  { label: 'Item Rate / Turnkey Tender', value: 'Tender' },
+  { label: 'Rate Contract (Annual / Bulk)', value: 'Rate Contract' },
+  { label: 'Empanelment / Vendor Roster', value: 'Empanelment' },
+];
+
+// 7. Closing Submission Windows
 const DEADLINE_OPTIONS = [
   { label: 'All Closing Deadlines', value: '' },
   { label: 'Closing in 3 Days (Urgent)', value: '3' },
-  { label: 'Closing in 7 Days', value: '7' },
-  { label: 'Closing in 15 Days', value: '15' },
-  { label: 'Closing in 30 Days', value: '30' },
+  { label: 'Closing in 7 Days (Within 1 Week)', value: '7' },
+  { label: 'Closing in 15 Days (Fortnightly)', value: '15' },
+  { label: 'Closing in 30 Days (Monthly Window)', value: '30' },
 ];
 
 export default function Tenders() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, user, checkAuth } = useAuthStore();
-
-  const [subscription, setSubscription] = useState(null);
-
-  // Refresh user quota and subscription status on directory mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      checkAuth();
-      billingApi.getStatus().then((sub) => setSubscription(sub)).catch(() => {});
-    }
-  }, [isAuthenticated, checkAuth]);
-
-  const isPro = Boolean(
-    subscription?.hasActiveSubscription || 
-    user?.role === 'admin' || 
-    user?.role === 'owner' ||
-    import.meta.env.VITE_TEST_MODE === 'true' ||
-    (typeof window !== 'undefined' && window.location.port === '5175')
-  );
+  const { isAuthenticated, user, isPro } = useAuthStore();
 
   // Auth Prompt Modal State
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -179,15 +275,19 @@ export default function Tenders() {
   // 1. Initial State from URL params
   const initialSearch = searchParams.get('search') || '';
   const initialCategory = searchParams.get('category') || '';
+  const initialTenderCategory = searchParams.get('tenderCategory') || '';
+  const initialContractType = searchParams.get('contractType') || '';
 
   const [advancedSearch, setAdvancedSearch] = useState(initialSearch);
   const debouncedSearch = useDebounce(advancedSearch, 500);
 
+  const [tenderCategory, setTenderCategory] = useState(initialTenderCategory);
   const [category, setCategory] = useState(initialCategory);
-  const [location, setLocation] = useState('');
-  const [organisation, setOrganisation] = useState('');
-  const [department, setDepartment] = useState('');
-  const [closingDate, setClosingDate] = useState('');
+  const [contractType, setContractType] = useState(initialContractType);
+  const [location, setLocation] = useState(searchParams.get('location') || '');
+  const [organisation, setOrganisation] = useState(searchParams.get('organisation') || '');
+  const [department, setDepartment] = useState(searchParams.get('department') || '');
+  const [closingDate, setClosingDate] = useState(searchParams.get('closingDays') || '');
   
   // Tab State: Latest vs Archived Tenders
   const [status, setStatus] = useState('active');
@@ -199,7 +299,9 @@ export default function Tenders() {
   // Active filter count for badge
   const activeFilterCount = [
     Boolean(advancedSearch),
+    Boolean(tenderCategory),
     Boolean(category),
+    Boolean(contractType),
     Boolean(location),
     Boolean(organisation),
     Boolean(department),
@@ -212,7 +314,9 @@ export default function Tenders() {
   // 2. Construct API Query
   const queryFilters = {
     search: debouncedSearch,
+    tenderCategory: tenderCategory,
     category: category,
+    contractType: contractType,
     organisation: organisation,
     department: department,
     location: location,
@@ -235,7 +339,9 @@ export default function Tenders() {
   // 3. Handlers
   const handleReset = () => {
     setAdvancedSearch('');
+    setTenderCategory('');
     setCategory('');
+    setContractType('');
     setOrganisation('');
     setDepartment('');
     setLocation('');
@@ -281,21 +387,16 @@ export default function Tenders() {
                   <span>Guest Preview (15 Latest Notices)</span>
                 </span>
               ) : isPro ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span>TenderHub Pro Active: All Notices &amp; WhatsApp Alerts Unlocked</span>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700 shadow-xs">
+                  Pro Unlimited Access
                 </span>
               ) : (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
-                  (user?.dailyViews?.viewsUsed ?? 0) >= (typeof user?.dailyViews?.viewsLimit === 'number' ? user.dailyViews.viewsLimit : 5)
-                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                }`}>
-                  <Eye className="w-3.5 h-3.5 shrink-0" />
-                  <span>
-                    Daily Views: {user?.dailyViews?.viewsUsed ?? 0}/{user?.dailyViews?.viewsLimit === 'Unlimited' ? 'Unlimited' : (user?.dailyViews?.viewsLimit ?? 5)} used (24h limit)
-                  </span>
-                </span>
+                <DailyAccessMeter 
+                  viewsUsed={user?.dailyViews?.viewsUsed ?? 0}
+                  viewsLimit={typeof user?.dailyViews?.viewsLimit === 'number' ? user.dailyViews.viewsLimit : 5}
+                  resetsAt={user?.dailyViews?.resetsAt}
+                  isPro={isPro}
+                />
               )}
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
@@ -388,6 +489,32 @@ export default function Tenders() {
                     className="pl-9 text-xs"
                   />
                 </div>
+              </div>
+
+              {/* Procurement Nature (Works, Goods, Services) */}
+              <div>
+                <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Briefcase className="w-3.5 h-3.5 text-dalBlue dark:text-blue-400" /> Procurement Type
+                  </span>
+                  {tenderCategory && (
+                    <button 
+                      onClick={() => { setTenderCategory(''); setCurrentPage(1); }}
+                      className="text-[10px] text-chinarRed font-bold hover:underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <Select value={tenderCategory} onValueChange={(val) => { setTenderCategory(val); setCurrentPage(1); }}>
+                  <SelectTrigger className="text-xs">
+                    {PROCUREMENT_TYPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectTrigger>
+                </Select>
               </div>
 
               {/* District / Location Dropdown */}
@@ -484,6 +611,32 @@ export default function Tenders() {
                 <Select value={department} onValueChange={(val) => { setDepartment(val); setCurrentPage(1); }}>
                   <SelectTrigger className="text-xs">
                     {DIVISION_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectTrigger>
+                </Select>
+              </div>
+
+              {/* Form of Contract Dropdown */}
+              <div>
+                <label className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <FileCheck className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" /> Form of Contract
+                  </span>
+                  {contractType && (
+                    <button 
+                      onClick={() => { setContractType(''); setCurrentPage(1); }}
+                      className="text-[10px] text-chinarRed font-bold hover:underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </label>
+                <Select value={contractType} onValueChange={(val) => { setContractType(val); setCurrentPage(1); }}>
+                  <SelectTrigger className="text-xs">
+                    {CONTRACT_TYPE_OPTIONS.map((opt) => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -651,6 +804,16 @@ export default function Tenders() {
                   </span>
                 )}
 
+                {tenderCategory && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <Briefcase className="w-3 h-3" />
+                    <span>Type: {tenderCategory}</span>
+                    <button onClick={() => setTenderCategory('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
                 {location && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
                     <MapPin className="w-3 h-3 text-chinarRed" />
@@ -685,6 +848,16 @@ export default function Tenders() {
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
                     <span className="truncate max-w-[160px]">Division: {department}</span>
                     <button onClick={() => setDepartment('')} className="hover:text-chinarRed font-bold ml-0.5">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+
+                {contractType && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-dalBlue dark:text-blue-200 border border-dalBlue/20 font-medium">
+                    <FileCheck className="w-3 h-3" />
+                    <span>Contract: {contractType}</span>
+                    <button onClick={() => setContractType('')} className="hover:text-chinarRed font-bold ml-0.5">
                       <X className="w-3 h-3" />
                     </button>
                   </span>

@@ -14,6 +14,7 @@ export function Badge({ className, variant = 'default', children, ...props }) {
     success: "bg-successGreen/10 dark:bg-successGreen/20 text-successGreen dark:text-emerald-400 border border-successGreen/20 dark:border-emerald-500/30",
     warning: "bg-warningGold/10 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-warningGold/20 dark:border-amber-500/30",
     destructive: "bg-chinarRed/10 dark:bg-red-500/20 text-chinarRed dark:text-red-400 border border-chinarRed/20 dark:border-red-500/30",
+    pro: "bg-[#ECEEF2] dark:bg-slate-800 text-[#1E293B] dark:text-slate-100 border border-[#D5D8DF] dark:border-slate-700 shadow-2xs uppercase tracking-wider font-extrabold",
   };
 
   return (

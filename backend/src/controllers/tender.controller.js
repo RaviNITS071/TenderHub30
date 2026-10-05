@@ -32,6 +32,8 @@ export const getTenders = async (req, res, next) => {
       limit = 10, 
       search, 
       category,
+      tenderCategory,
+      contractType,
       organisation, 
       department, 
       location, 
@@ -60,6 +62,16 @@ export const getTenders = async (req, res, next) => {
       });
     }
 
+    // Tender Category (Nature of Procurement: Works, Goods, Services)
+    if (tenderCategory && typeof tenderCategory === 'string' && tenderCategory.trim()) {
+      baseConditions.push({ tenderCategory: { $regex: `^${escapeRegex(tenderCategory)}$`, $options: 'i' } });
+    }
+
+    // Contract Type (Tender, Rate Contract, Empanelment)
+    if (contractType && typeof contractType === 'string' && contractType.trim()) {
+      baseConditions.push({ contractType: { $regex: escapeRegex(contractType), $options: 'i' } });
+    }
+
     // Advanced Search Filter (Matches Title, Description, Tender IDs, Product & Tender Categories)
     if (search) {
       const escapedSearch = escapeRegex(search);
@@ -80,7 +92,13 @@ export const getTenders = async (req, res, next) => {
 
     // Organisation & Department Filter
     if (organisation) {
-      baseConditions.push({ organisationChain: { $regex: escapeRegex(organisation), $options: 'i' } });
+      const escapedOrg = escapeRegex(organisation);
+      baseConditions.push({
+        $or: [
+          { organisationChain: { $regex: escapedOrg, $options: 'i' } },
+          { departmentName: { $regex: escapedOrg, $options: 'i' } }
+        ]
+      });
     }
     if (department) {
       baseConditions.push({ organisationChain: { $regex: escapeRegex(department), $options: 'i' } });
