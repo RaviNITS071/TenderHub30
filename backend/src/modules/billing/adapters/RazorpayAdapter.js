@@ -64,6 +64,10 @@ export class RazorpayAdapter extends IPaymentGateway {
 
   verifyPaymentSignature({ orderId, paymentId, signature }) {
     if (this.isMockMode) {
+      if (env.NODE_ENV === 'production') {
+        logger.error('CRITICAL: Attempted mock payment signature verification in PRODUCTION environment.');
+        return false;
+      }
       return signature === 'mock_valid_signature' || signature?.startsWith('mock_');
     }
 

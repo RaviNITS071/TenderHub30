@@ -6,16 +6,16 @@ import {
   downloadTenderZip,
   triggerAiAnalysis
 } from '../controllers/tender.controller.js';
-import { verifyToken } from '../middleware/auth.middleware.js';
+import { verifyToken, optionalAuth } from '../middleware/auth.middleware.js';
 import { aiAnalyzeLimiter } from '../middleware/rateLimiter.middleware.js';
 
 const router = express.Router();
 
 /**
  * @route GET /api/tenders
- * Fetch a paginated list of all tenders.
+ * Fetch a paginated list of all tenders (safe summary projected, guest pagination capped).
  */
-router.get('/', getTenders);
+router.get('/', optionalAuth, getTenders);
 
 /**
  * @route GET /api/tenders/stats

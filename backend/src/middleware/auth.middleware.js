@@ -2,8 +2,10 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 
 export const verifyToken = async (req, res, next) => {
-  // Test port / test mode bypass for development testing without login
-  if (env.NODE_ENV !== 'production' && (
+  // Test port / test mode bypass - STRICTLY allowed only on localhost during development
+  const clientIp = req.ip || req.connection?.remoteAddress || '';
+  const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('localhost') || clientIp === '::ffff:127.0.0.1';
+  if (env.NODE_ENV === 'development' && isLocalhost && (
     req.headers['x-bypass-auth'] === 'true' || 
     req.headers.origin?.includes(':5175') || 
     req.headers.referer?.includes(':5175')
@@ -105,7 +107,9 @@ export const verifyToken = async (req, res, next) => {
  * otherwise leaves req.user = null and continues without erroring.
  */
 export const optionalAuth = (req, res, next) => {
-  if (env.NODE_ENV !== 'production' && (
+  const clientIp = req.ip || req.connection?.remoteAddress || '';
+  const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('localhost') || clientIp === '::ffff:127.0.0.1';
+  if (env.NODE_ENV === 'development' && isLocalhost && (
     req.headers['x-bypass-auth'] === 'true' || 
     req.headers.origin?.includes(':5175') || 
     req.headers.referer?.includes(':5175')

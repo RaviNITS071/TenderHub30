@@ -7,6 +7,7 @@ import { razorpayAdapter } from './adapters/RazorpayAdapter.js';
 import User from '../../models/User.js';
 import ContractorPreference from '../notifications/models/ContractorPreference.js';
 import { whatsappNotificationService } from '../notifications/services/whatsapp.service.js';
+import { env } from '../../config/env.js';
 import pino from 'pino';
 
 const logger = pino();
@@ -115,7 +116,17 @@ export class BillingService {
       throw new Error(`Invalid plan selected: "${planId}".`);
     }
 
-    // 1. Verify cryptographic signature from Gateway
+    if (env.NODE_ENV === 'production' && razorpayAdapter.isMockMode) {
+      throw new Error('Payment gateway is not configured for production transactions.');
+    }
+
+    // 1. Replay prevention: verify this paymentId has not already been used for another subscription
+    const existingPaymentSub = await Subscription.findOne({ gatewayPaymentId: paymentId });
+    if (existingPaymentSub) {
+      throw new Error('This payment transaction has already been redeemed.');
+    }
+
+    // 2. Verify cryptographic signature from Gateway
     const isValidSignature = razorpayAdapter.verifyPaymentSignature({
       orderId,
       paymentId,
@@ -125,6 +136,19 @@ export class BillingService {
     if (!isValidSignature) {
       logger.warn(`Signature verification failed for user ${userId}, order ${orderId}`);
       throw new Error('Payment signature verification failed. Untrusted payment payload.');
+    }
+
+    // 3. For live mode, verify that the payment was captured and amount matches the plan!
+    if (!razorpayAdapter.isMockMode) {
+      const paymentData = await razorpayAdapter.fetchPayment(paymentId);
+      if (!paymentData || paymentData.status !== 'captured') {
+        throw new Error('Payment transaction is not in captured status.');
+      }
+      const expectedAmountPaise = Math.round(plan.price * 100);
+      if (paymentData.amount < expectedAmountPaise) {
+        logger.error(`Plan tampering attempt: user ${userId} paid ${paymentData.amount} paise, but requested plan ${plan.id} (${expectedAmountPaise} paise)`);
+        throw new Error('Paid amount does not match the required price for this plan.');
+      }
     }
 
     // 2. Calculate period duration

@@ -4,6 +4,7 @@
  */
 
 import mongoose from 'mongoose';
+import { Readable } from 'stream';
 import Tender from '../models/Tender.js';
 import User from '../models/User.js';
 import Subscription from '../modules/billing/models/Subscription.js';
@@ -233,14 +234,61 @@ export const getTenders = async (req, res, next) => {
       sortConfig = { publishedDate: -1, createdAt: -1, _id: -1 };
     }
 
-    // 7. Execute Database Query with Enforced Limits
-    const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 10), 100);
+    // 7. Enforce Authentication-Aware Limits & Data Minimization Projection
+    const isGuest = !req.user || !req.user.userId;
     const safePage = Math.max(1, parseInt(page, 10) || 1);
 
+    // Hard ceiling for unauthenticated visitors: max 2 pages to prevent automated deep scraping
+    if (isGuest && safePage > 2) {
+      return res.status(401).json({
+        error: 'Guest preview limit reached. Sign in to browse the complete directory and access documents.',
+        code: 'GUEST_PAGE_LIMIT',
+        requireLogin: true,
+      });
+    }
+
+    const maxAllowedLimit = isGuest ? 15 : 50;
+    const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 10), maxAllowedLimit);
+
+    // Strictly project only public listing metadata. 
+    // Strips out: boqZipUrl, boqFileUrl, nitDocuments, workItemDocuments, pdfUrls, workDescription, r2StorageKey
+    const PUBLIC_SUMMARY_PROJECTION = [
+      'title',
+      'sourceTenderId',
+      'departmentCode',
+      'departmentName',
+      'organisationChain',
+      'closingDate',
+      'closingDateStr',
+      'closingTime',
+      'publishedDate',
+      'publishedDateStr',
+      'publishedTime',
+      'bidOpeningDate',
+      'bidOpeningDateStr',
+      'bidOpeningTime',
+      'bidSubmissionEndDate',
+      'bidSubmissionEndDateStr',
+      'bidSubmissionEndTime',
+      'estimatedValue',
+      'location',
+      'pincode',
+      'tenderCategory',
+      'productCategory',
+      'contractType',
+      'status',
+      'isMultiTender',
+      'relatedTenderIds',
+      'isDocumentAvailable',
+      'tenderReferenceNumber',
+    ].join(' ');
+
     const tenders = await Tender.find(query)
+      .select(PUBLIC_SUMMARY_PROJECTION)
       .sort(sortConfig)
       .skip((safePage - 1) * safeLimit)
-      .limit(safeLimit);
+      .limit(safeLimit)
+      .lean();
 
     // Get the total count of documents matching the active query for frontend pagination controls
     const total = await Tender.countDocuments(query);
@@ -566,9 +614,37 @@ export const getTenderStats = async (req, res, next) => {
 export const downloadTenderZip = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // Authentication check
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ message: 'Authentication required to download tender packet', requireLogin: true });
+    }
+
     const tender = await Tender.findById(id).lean();
     if (!tender) {
       return res.status(404).json({ message: 'Tender not found' });
+    }
+
+    // Authorization & Pro Plan check
+    const user = await User.findById(req.user.userId);
+    const isAdmin = (user?.role === 'admin' || user?.role === 'superadmin' || req.user?.role === 'admin');
+    const activeSub = await Subscription.findOne({
+      userId: user?._id,
+      status: 'active',
+      currentPeriodEnd: { $gt: new Date() },
+    });
+    const isPro = !!activeSub || isAdmin;
+
+    if (!isPro) {
+      const viewedTenderIds = user?.dailyTenderViews?.tenderIds || [];
+      const tenderIdentifier = tender._id.toString();
+      const hasViewed = viewedTenderIds.includes(tenderIdentifier) || (tender.sourceTenderId && viewedTenderIds.includes(tender.sourceTenderId));
+      if (!hasViewed) {
+        return res.status(403).json({
+          message: 'Tender packet download requires viewing this tender notice first or upgrading to Pro.',
+          code: 'PRO_REQUIRED'
+        });
+      }
     }
 
     const zipUrl = tender.boqZipUrl || (tender.boqFileUrl && tender.boqFileUrl.toLowerCase().endsWith('.zip') ? tender.boqFileUrl : null);
@@ -585,8 +661,13 @@ export const downloadTenderZip = async (req, res, next) => {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
 
-    const arrayBuffer = await response.arrayBuffer();
-    return res.send(Buffer.from(arrayBuffer));
+    // Stream directly via Readable to prevent Memory Exhaustion (OOM)
+    if (response.body) {
+      return Readable.fromWeb(response.body).pipe(res);
+    } else {
+      const arrayBuffer = await response.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    }
   } catch (error) {
     next(error);
   }

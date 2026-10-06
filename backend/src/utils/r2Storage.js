@@ -5,6 +5,7 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand 
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 import path from "path";
 import pino from 'pino';
@@ -487,4 +488,25 @@ export const downloadLatestBackupFromR2 = async (destFilePath) => {
   fs.writeFileSync(destFilePath, buffer);
   logger.info(`[Backup R2] Latest database backup downloaded successfully to: ${destFilePath}`);
   return destFilePath;
+};
+
+/**
+ * Generates a short-lived (ephemeral) presigned download URL for private R2 assets.
+ * Valid for only expiresInSeconds (default 60s) to prevent unauthorized distribution.
+ */
+export const getPresignedDownloadUrl = async (key, expiresInSeconds = 60) => {
+  try {
+    const bucketName = process.env.R2_BUCKET_NAME;
+    if (!bucketName || !key) return null;
+
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+
+    return await getSignedUrl(r2, command, { expiresIn: expiresInSeconds });
+  } catch (err) {
+    logger.warn(`[R2 Storage] Failed to generate presigned download URL for ${key}: ${err.message}`);
+    return null;
+  }
 };

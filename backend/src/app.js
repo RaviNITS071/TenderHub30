@@ -19,6 +19,11 @@ import notificationRoutes from './modules/notifications/notification.routes.js';
 import { globalErrorHandler } from './middleware/errorHandler.middleware.js';
 
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
+import { 
+  checkIpBlacklist, 
+  blockScraperUserAgents, 
+  handleHoneypotTrap 
+} from './middleware/botShield.middleware.js';
 
 const app = express();
 const logger = pino({
@@ -90,17 +95,25 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));
 
+// Apply BotShield IP Blacklist globally
+app.use(checkIpBlacklist);
+
 // Apply rate limiting to all /api/ endpoints to prevent DoS attacks
 app.use('/api/', apiLimiter);
 
-// 2. Base Routes
+// 2. Base Routes & Honeypot Traps
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Honeypot traps: Bots that follow hidden links get banned in Redis for 24 hours
+app.get('/api/v1/internal/crawler-trap', handleHoneypotTrap);
+app.get('/api/v1/feed/tenders-bulk', handleHoneypotTrap);
+app.get('/internal/crawler-trap', handleHoneypotTrap);
+
 // 🚀 3. Mount Business Logic Routes
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/tenders', tenderRoutes);
+app.use('/api/v1/tenders', blockScraperUserAgents, tenderRoutes);
 app.use('/api/v1/bids', bidRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/api/v1/documents', documentRoutes);
