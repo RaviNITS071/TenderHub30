@@ -26,7 +26,8 @@ import {
   Eye, 
   Sparkles,
   Briefcase,
-  FileCheck
+  FileCheck,
+  Lock
 } from 'lucide-react';
 
 import { useTenders } from '@/hooks/useTenders';
