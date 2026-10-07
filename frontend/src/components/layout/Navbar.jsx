@@ -24,6 +24,7 @@ export function Navbar() {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Browse Tenders', path: '/tenders' },
+    { label: 'Check Score', path: '/check-score' },
     { label: 'Pricing & Plans', path: '/pricing' },
     { label: 'About Platform', path: '/about' },
     { label: 'Contact', path: '/contact' },

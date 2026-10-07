@@ -17,6 +17,18 @@ const contractorProfileSchema = new mongoose.Schema({
     preferEmdExemption: { type: Boolean, default: false },
     isConfigured: { type: Boolean, default: false },
   },
+  // Saved financial baseline for bid probability calculations (updatable)
+  financialMetrics: {
+    maxAnnualTurnover: { type: Number, default: 0 },
+    ongoingCommitments: { type: Number, default: 0 },
+    largestSimilarWork: { type: Number, default: 0 },
+    hasMachineryEquipment: { type: Boolean, default: true },
+    hasValidGstClearance: { type: Boolean, default: true },
+    hasRegistrationCardRenewal: { type: Boolean, default: true },
+    hasActiveCdrFdrFacility: { type: Boolean, default: true },
+    lastUpdated: { type: Date, default: Date.now },
+  },
+  evaluations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'BidEvaluation' }],
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true, required: false },
   savedTenders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tender' }],
 }, { timestamps: true });

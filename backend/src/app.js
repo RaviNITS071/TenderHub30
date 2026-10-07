@@ -14,6 +14,7 @@ import organizationRoutes from './routes/organization.routes.js';
 import documentRoutes from './routes/document.routes.js';
 import contractorRoutes from './routes/contractor.routes.js';
 import adminRoutes from './routes/admin.routes.js';
+import bidScoreRoutes from './routes/bidScore.routes.js';
 import billingRoutes from './modules/billing/billing.routes.js';
 import notificationRoutes from './modules/notifications/notification.routes.js';
 import { globalErrorHandler } from './middleware/errorHandler.middleware.js';
@@ -118,6 +119,7 @@ app.use('/api/v1/bids', bidRoutes);
 app.use('/api/v1/organizations', organizationRoutes);
 app.use('/api/v1/documents', documentRoutes);
 app.use('/api/v1/contractor', contractorRoutes);
+app.use('/api/v1/bid-score', bidScoreRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
@@ -129,6 +131,7 @@ app.use('/bids', bidRoutes);
 app.use('/organizations', organizationRoutes);
 app.use('/documents', documentRoutes);
 app.use('/contractor', contractorRoutes);
+app.use('/bid-score', bidScoreRoutes);
 app.use('/admin', adminRoutes);
 
 // 4. 404 Handler

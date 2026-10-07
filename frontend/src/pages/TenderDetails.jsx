@@ -35,7 +35,8 @@ import {
   Clock,
   Sparkles,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Calculator
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -455,6 +456,14 @@ export default function TenderDetails() {
                 >
                   <Heart className={`w-4 h-4 mr-1.5 ${bookmarked ? 'fill-current text-chinarRed' : ''}`} />
                   {bookmarked ? 'Saved' : 'Save Tender'}
+                </Button>
+
+                <Button 
+                  onClick={() => navigate(`/check-score/${tender._id || tender.sourceTenderId}`)}
+                  className="w-full text-xs font-bold py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-xs"
+                >
+                  <Calculator className="w-4 h-4 mr-1.5" />
+                  Check Win Score
                 </Button>
                 
                 <Button 

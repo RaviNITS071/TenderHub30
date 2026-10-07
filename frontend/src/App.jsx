@@ -19,6 +19,7 @@ import Pricing from './pages/Pricing';
 import About from './pages/About';
 import Contact from './pages/Contact';
 import Login from './pages/Login';
+import CheckScore from './pages/CheckScore';
 import { useAuthStore } from './store/useAuthStore';
 
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
@@ -42,6 +43,8 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/tenders" element={<Tenders />} />
+            <Route path="/check-score" element={<CheckScore />} />
+            <Route path="/check-score/:tenderId" element={<CheckScore />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/about" element={<About />} />
