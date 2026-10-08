@@ -30,6 +30,7 @@
     "report:pdf": "node src/scripts/generateCrawlReportPdf.js",
     "manual:adapters": "node src/scripts/generateAdaptersGuidePdf.js",
     "manuals:all": "node src/scripts/generateDisasterRecoveryPdf.js && node src/scripts/generateDeploymentPdf.js && node src/scripts/generateFutureConfigPdf.js && node src/scripts/generateCrawlReportPdf.js && node src/scripts/generateAdaptersGuidePdf.js",
+    "manuals:latex": "node src/scripts/generateLatexPdfs.js",
     "sync:mirror": "node src/scripts/syncR2Mirror.js",
     "reconcile:dates": "node src/scripts/reconcileDates.js"
   },
