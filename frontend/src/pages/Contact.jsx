@@ -16,7 +16,7 @@ export default function Contact() {
   };
 
   return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 py-10 sm:py-16 px-3 sm:px-6 lg:px-8 flex items-center transition-colors duration-200">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-10 sm:py-16 px-4 sm:px-6 lg:px-8 flex items-center transition-colors duration-200">
       <div className="max-w-5xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 sm:p-8 lg:p-10 shadow-xs">
         
         {/* Left Column: Institutional Info */}

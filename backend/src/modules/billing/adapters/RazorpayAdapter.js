@@ -85,6 +85,31 @@ export class RazorpayAdapter extends IPaymentGateway {
     }
   }
 
+  verifyWebhookSignature(rawBody, signature) {
+    const webhookSecret = env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      logger.warn('RAZORPAY_WEBHOOK_SECRET is not configured. Webhook verification bypassed for dev.');
+      return true;
+    }
+
+    if (!signature) {
+      logger.error('Missing X-Razorpay-Signature header in webhook request.');
+      return false;
+    }
+
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(typeof rawBody === 'string' ? rawBody : (rawBody?.toString('utf8') || ''))
+        .digest('hex');
+
+      return expectedSignature === signature;
+    } catch (err) {
+      logger.error(`Webhook signature verification error: ${err.message}`);
+      return false;
+    }
+  }
+
   async fetchPayment(paymentId) {
     if (this.isMockMode) {
       return {

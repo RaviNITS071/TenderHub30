@@ -20,6 +20,7 @@ import About from './pages/About';
 import Contact from './pages/Contact';
 import Login from './pages/Login';
 import CheckScore from './pages/CheckScore';
+import Services from './pages/Services';
 import { useAuthStore } from './store/useAuthStore';
 
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
@@ -46,6 +47,8 @@ export default function App() {
             <Route path="/check-score" element={<CheckScore />} />
             <Route path="/check-score/:tenderId" element={<CheckScore />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/services" element={<Services />} />
+            <Route path="/services/:tenderId" element={<Services />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />

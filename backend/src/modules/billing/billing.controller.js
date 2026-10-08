@@ -80,3 +80,14 @@ export const getSubscriptionStatus = async (req, res) => {
     return res.status(500).json({ success: false, message: err.message });
   }
 };
+
+export const handleRazorpayWebhook = async (req, res) => {
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    const rawBody = req.rawBody || JSON.stringify(req.body);
+    await billingService.handleWebhook(rawBody, signature, req.body);
+    return res.status(200).json({ status: 'ok' });
+  } catch (err) {
+    return res.status(400).json({ status: 'error', message: err.message });
+  }
+};

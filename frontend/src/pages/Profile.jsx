@@ -231,8 +231,8 @@ export default function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 py-6 sm:py-10 px-3 sm:px-6 lg:px-8 transition-colors duration-200">
-      <div className="max-w-6xl mx-auto space-y-5 sm:space-y-6">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-6 sm:py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto space-y-5 sm:space-y-6">
         
         {/* Contractor Profile Header Card - Dynamically linked to profile store */}
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 sm:p-7 shadow-xs flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 sm:gap-6 transition-all">

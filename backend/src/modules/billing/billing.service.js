@@ -6,6 +6,7 @@ import Subscription from './models/Subscription.js';
 import { razorpayAdapter } from './adapters/RazorpayAdapter.js';
 import User from '../../models/User.js';
 import ContractorPreference from '../notifications/models/ContractorPreference.js';
+import ContractorAgentProfile from '../../models/ContractorAgentProfile.js';
 import { whatsappNotificationService } from '../notifications/services/whatsapp.service.js';
 import { env } from '../../config/env.js';
 import pino from 'pino';
@@ -57,6 +58,63 @@ export const PLANS = {
       'Save 37% (~₹249/month effective rate)',
       'Direct WhatsApp priority support from engineering desk',
       'Early access to new department adapters',
+    ],
+  },
+  ai_pay_per_tender: {
+    id: 'ai_pay_per_tender',
+    name: 'Pay-Per-Tender AI Dossier',
+    price: 299,
+    periodDays: 30,
+    cycle: 'one-time',
+    popular: false,
+    dossierCredits: 1,
+    chatQueries: 20,
+    description: 'Instant full AI analysis for a single high-stakes tender.',
+    features: [
+      '1 Full Comprehensive AI Tender Dossier',
+      'Instant BOQ Raw Material Extractor & Rates',
+      'Personalized Turnover & Solvency Gap Check',
+      'Mandatory Document & Affidavit Checklist',
+      'Post-Award Milestone & Penalty Alert Sheet',
+      '48-Hour Interactive Tender Copilot Access',
+    ],
+  },
+  ai_copilot_starter: {
+    id: 'ai_copilot_starter',
+    name: 'Contractor Copilot Starter',
+    price: 999,
+    periodDays: 30,
+    cycle: 'monthly',
+    popular: true,
+    dossierCredits: 10,
+    chatQueries: 100,
+    description: 'Continuous AI quantity surveying for active local contractors.',
+    features: [
+      '10 Full AI Tender Dossiers every month',
+      'Personalized Contractor Profile Memory',
+      'Turnover, Machinery & Solvency Gap Analysis',
+      'Complete Raw Material BOQ Schedule & Rates',
+      '100 Interactive Copilot AI Queries',
+      'Email & WhatsApp Summary Alerts',
+    ],
+  },
+  ai_bidding_pro: {
+    id: 'ai_bidding_pro',
+    name: 'Bidding Pro & Execution Suite',
+    price: 2499,
+    periodDays: 30,
+    cycle: 'monthly',
+    popular: false,
+    dossierCredits: 35,
+    chatQueries: 350,
+    description: 'For Class A/B engineering firms executing multiple public works.',
+    features: [
+      '35 Full AI Tender Dossiers per month',
+      'Advanced Multi-Agent Engineering Intelligence',
+      'Auto-generated Excel BOQ Line Items & Rates',
+      'Subcontractor Work Packaging & Safety Specs',
+      '350 Interactive Copilot AI Queries',
+      'Direct WhatsApp Priority Desk Support',
     ],
   },
 };
@@ -127,15 +185,17 @@ export class BillingService {
     }
 
     // 2. Verify cryptographic signature from Gateway
-    const isValidSignature = razorpayAdapter.verifyPaymentSignature({
-      orderId,
-      paymentId,
-      signature,
-    });
+    if (signature !== 'webhook_verified') {
+      const isValidSignature = razorpayAdapter.verifyPaymentSignature({
+        orderId,
+        paymentId,
+        signature,
+      });
 
-    if (!isValidSignature) {
-      logger.warn(`Signature verification failed for user ${userId}, order ${orderId}`);
-      throw new Error('Payment signature verification failed. Untrusted payment payload.');
+      if (!isValidSignature) {
+        logger.warn(`Signature verification failed for user ${userId}, order ${orderId}`);
+        throw new Error('Payment signature verification failed. Untrusted payment payload.');
+      }
     }
 
     // 3. For live mode, verify that the payment was captured and amount matches the plan!
@@ -202,6 +262,20 @@ export class BillingService {
       ).catch(() => {});
     }
 
+    // 5b. If AI Service Plan purchased, credit the contractor's AI wallet
+    if (plan.dossierCredits) {
+      let agentProfile = await ContractorAgentProfile.findOne({ userId });
+      if (!agentProfile) {
+        agentProfile = new ContractorAgentProfile({ userId });
+      }
+      agentProfile.credits.planTier = plan.id.replace('ai_', '');
+      agentProfile.credits.availableDossiers = (agentProfile.credits.availableDossiers || 0) + plan.dossierCredits;
+      agentProfile.credits.copilotQueriesLimit = (agentProfile.credits.copilotQueriesLimit || 0) + (plan.chatQueries || 50);
+      agentProfile.credits.planExpiresAt = endDate;
+      await agentProfile.save();
+      logger.info(`AI credits topped up for user ${userId}: +${plan.dossierCredits} dossiers, +${plan.chatQueries} queries.`);
+    }
+
     // 6. Asynchronously send WhatsApp payment receipt & confirmation
     const user = await User.findById(userId);
     whatsappNotificationService.sendPaymentReceipt({
@@ -238,6 +312,47 @@ export class BillingService {
       currentPeriodEnd: subscription.currentPeriodEnd,
       features: subscription.features,
     };
+  }
+
+  async handleWebhook(rawBody, signature, payload) {
+    const isValid = razorpayAdapter.verifyWebhookSignature(rawBody, signature);
+    if (!isValid) {
+      throw new Error('Invalid Razorpay webhook signature.');
+    }
+
+    const { event } = payload || {};
+    logger.info(`Received verified Razorpay webhook event: "${event}"`);
+
+    if (event === 'payment.captured' || event === 'order.paid') {
+      const paymentEntity = payload.payload?.payment?.entity;
+      const orderEntity = payload.payload?.order?.entity;
+
+      const paymentId = paymentEntity?.id;
+      const orderId = paymentEntity?.order_id || orderEntity?.id;
+      const notes = paymentEntity?.notes || orderEntity?.notes || {};
+      const userId = notes.userId;
+      const planId = notes.planId;
+      const phone = notes.phone;
+
+      if (userId && planId && orderId && paymentId) {
+        // Prevent duplicate processing if already activated
+        const existingSub = await Subscription.findOne({ gatewayPaymentId: paymentId });
+        if (!existingSub) {
+          logger.info(`Activating subscription via webhook for user ${userId}, plan ${planId}`);
+          await this.verifyAndActivateSubscription(userId, {
+            orderId,
+            paymentId,
+            signature: 'webhook_verified',
+            planId,
+            phone,
+          });
+        } else {
+          logger.info(`Webhook event already processed for payment ${paymentId}`);
+        }
+      }
+    }
+
+    return { received: true };
   }
 }
 

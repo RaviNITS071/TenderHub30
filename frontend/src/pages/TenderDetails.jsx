@@ -384,8 +384,8 @@ export default function TenderDetails() {
   });
 
   return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 py-6 sm:py-8 px-3 sm:px-6 lg:px-8 transition-colors duration-200">
-      <div className="max-w-6xl mx-auto space-y-5 sm:space-y-6">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-6 sm:py-8 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto space-y-5 sm:space-y-6">
         
         {/* Navigation & Header */}
         <div>
@@ -456,6 +456,14 @@ export default function TenderDetails() {
                 >
                   <Heart className={`w-4 h-4 mr-1.5 ${bookmarked ? 'fill-current text-chinarRed' : ''}`} />
                   {bookmarked ? 'Saved' : 'Save Tender'}
+                </Button>
+
+                <Button 
+                  onClick={() => navigate(`/services/${tender._id || tender.sourceTenderId}`)}
+                  className="w-full text-xs font-bold py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs"
+                >
+                  <Sparkles className="w-4 h-4 mr-1.5" />
+                  Contractor AI Dossier
                 </Button>
 
                 <Button 

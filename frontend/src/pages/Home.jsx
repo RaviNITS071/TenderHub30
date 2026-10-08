@@ -137,7 +137,7 @@ export default function Home() {
       />
 
       {/* Hero Section: Classical, Dignified & Authentic */}
-      <section className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pt-8 sm:pt-12 pb-12 sm:pb-16 px-3 sm:px-6 lg:px-8">
+      <section className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pt-8 sm:pt-12 pb-12 sm:pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto text-center space-y-4 sm:space-y-6">
           
           {/* Official Badge */}
@@ -324,7 +324,7 @@ export default function Home() {
 
       {/* Recent Tender Announcements Section */}
       {stats?.latestTenders && stats.latestTenders.length > 0 && (
-        <section className="py-10 sm:py-12 px-3 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <section className="py-10 sm:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-3">
             <div>
               <h2 className="text-xl sm:text-2xl font-display font-bold text-dalBlue dark:text-white">
@@ -378,7 +378,7 @@ export default function Home() {
                       {(tender.publishedDateStr || tender.publishedDate) && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 shrink-0" title={`Published: ${formatDateTimeDisplay(tender.publishedDateStr || tender.publishedDate)}`}>
                           <Clock className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span>{formatDateTimeDisplay(tender.publishedDateStr || tender.publishedDate)}</span>
+                          <span>{formatDateDisplay(tender.publishedDateStr || tender.publishedDate)}</span>
                         </span>
                       )}
                     </div>
@@ -402,7 +402,7 @@ export default function Home() {
       )}
 
       {/* Work Categories Section */}
-      <section className="bg-white dark:bg-slate-800/40 py-10 sm:py-12 border-t border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8">
+      <section className="bg-white dark:bg-slate-800/40 py-10 sm:py-12 border-t border-slate-200 dark:border-slate-800 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-display font-bold text-dalBlue dark:text-white">

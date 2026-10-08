@@ -14,6 +14,8 @@ const envVarsSchema = Joi.object({
   JWT_ACCESS_TTL: Joi.string().default('15m'),
   JWT_REFRESH_TTL: Joi.string().default('7d'),
   OPENAI_API_KEY: Joi.string().allow('').optional(), // Make optional until AI is integrated
+  GEMINI_API_KEY: Joi.string().allow('').optional(),
+  GEMINI_MODEL: Joi.string().default('gemini-1.5-flash'),
   S3_BUCKET: Joi.string().allow('').optional(),
   UPLOAD_DIR: Joi.string().default('uploads'),
   CORS_ORIGIN: Joi.string().default('http://localhost:5173'),

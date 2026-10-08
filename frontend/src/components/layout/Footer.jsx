@@ -81,6 +81,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link to="/services" className="hover:text-white transition-colors">
+                  AI Services &amp; Estimator
+                </Link>
+              </li>
+              <li>
                 <Link to="/pricing" className="hover:text-white transition-colors">
                   Contractor Plans
                 </Link>

@@ -7,7 +7,8 @@ import {
   getPlans, 
   createCheckoutOrder, 
   verifyPayment, 
-  getSubscriptionStatus 
+  getSubscriptionStatus,
+  handleRazorpayWebhook
 } from './billing.controller.js';
 import { verifyToken, optionalAuth } from '../../middleware/auth.middleware.js';
 
@@ -22,7 +23,10 @@ router.get('/status', optionalAuth, getSubscriptionStatus);
 // Authenticated: Create checkout order
 router.post('/create-order', verifyToken, createCheckoutOrder);
 
-// Authenticated: Verify signature and activate
+// Authenticated: Verify signature and activate (Client checkout callback)
 router.post('/verify-payment', verifyToken, verifyPayment);
+
+// Razorpay Webhook endpoint (Server-to-server asynchronous confirmation)
+router.post('/webhook', handleRazorpayWebhook);
 
 export default router;

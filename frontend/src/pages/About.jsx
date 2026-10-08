@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 
 export default function About() {
   return (
-    <div className="min-h-screen bg-paper dark:bg-slate-900 py-10 sm:py-16 px-3 sm:px-6 lg:px-8 transition-colors duration-200">
+    <div className="min-h-screen bg-paper dark:bg-slate-900 py-10 sm:py-16 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8">
         
         {/* Mission Statement Card */}

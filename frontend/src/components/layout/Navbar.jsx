@@ -24,6 +24,7 @@ export function Navbar() {
   const navLinks = [
     { label: 'Home', path: '/' },
     { label: 'Browse Tenders', path: '/tenders' },
+    { label: 'Services', path: '/services', isAi: true },
     { label: 'Check Score', path: '/check-score' },
     { label: 'Pricing & Plans', path: '/pricing' },
     { label: 'About Platform', path: '/about' },
@@ -32,7 +33,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
         {/* Institutional Brand Identity */}
         <Link to="/" className="flex items-center gap-2.5 sm:gap-3 shrink-0 group">
@@ -69,13 +70,18 @@ export function Navbar() {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`px-2.5 lg:px-3.5 py-1.5 rounded-xl text-[11px] lg:text-xs font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
+                className={`relative px-2.5 lg:px-3 py-1.5 rounded-xl text-[11px] lg:text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-chinarRed ${
                   isActive
                     ? 'bg-dalBlue/10 dark:bg-blue-500/25 text-dalBlue dark:text-blue-200 font-bold border border-dalBlue/30 dark:border-blue-400/40 shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:text-dalBlue dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:border-slate-300 dark:hover:border-slate-600 border border-transparent'
                 }`}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.isAi && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black tracking-widest bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs">
+                    AI
+                  </span>
+                )}
               </Link>
             );
           })}

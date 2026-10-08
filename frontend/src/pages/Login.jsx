@@ -257,7 +257,7 @@ export default function Login({ defaultMode }) {
   const errorMessage = localError || storeError;
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-8 sm:py-12 px-3 sm:px-6 lg:px-8 bg-paper dark:bg-slate-900 transition-colors duration-200">
+    <div className="min-h-[85vh] flex items-center justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 bg-paper dark:bg-slate-900 transition-colors duration-200">
       <div className="w-full max-w-lg space-y-5 sm:space-y-6">
         
         {/* Brand Card Header */}

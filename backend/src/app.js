@@ -17,6 +17,7 @@ import adminRoutes from './routes/admin.routes.js';
 import bidScoreRoutes from './routes/bidScore.routes.js';
 import billingRoutes from './modules/billing/billing.routes.js';
 import notificationRoutes from './modules/notifications/notification.routes.js';
+import servicesRoutes from './routes/services.routes.js';
 import { globalErrorHandler } from './middleware/errorHandler.middleware.js';
 
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
@@ -91,7 +92,11 @@ app.use(cors({
   },
   credentials: true, // Required for httpOnly cookies
 }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(pinoHttp({ logger }));
@@ -123,6 +128,7 @@ app.use('/api/v1/bid-score', bidScoreRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/billing', billingRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/services', servicesRoutes);
 
 // Fallback aliases (ensures frontend works whether VITE_API_URL includes /api/v1 or just the domain)
 app.use('/auth', authRoutes);
@@ -133,6 +139,7 @@ app.use('/documents', documentRoutes);
 app.use('/contractor', contractorRoutes);
 app.use('/bid-score', bidScoreRoutes);
 app.use('/admin', adminRoutes);
+app.use('/services', servicesRoutes);
 
 // 4. 404 Handler
 app.use((req, res, next) => {
