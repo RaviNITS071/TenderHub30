@@ -971,6 +971,121 @@ curl -s "http://localhost:8000/api/v1/tenders?page=1&limit=5&status=ACTIVE"</pre
     const cmdPdfPath = path.join(docsDir, 'TenderHub_Commands_Cheat_Sheet.pdf');
     await renderHtmlToPdf(browser, cmdDocHtml, cmdPdfPath);
 
+    // 5. CLOUDFLARE ANTI-BOT & SCRAPING DEFENSE PLAN PDF
+    const cfHtml = `
+      <h1>1. Executive Summary & Threat Model</h1>
+      <p>
+        As an intelligence aggregator of government procurement notices, TenderHub is vulnerable to automated competitor scraping, catalog harvesting, credential stuffing, and Cloudflare R2 document bandwidth leeching.
+      </p>
+      <p>
+        While application-level middleware (<code>botShield.middleware.js</code>) intercepts known User-Agents, every bot request reaching Node.js consumes Render compute cycles, memory, and database connections. <strong>Cloudflare Edge Defense</strong> intercepts, challenges, and drops malicious requests at Cloudflare's global anycast points of presence before packets ever touch the Render origin server.
+      </p>
+
+      <h1>2. Multi-Layered Edge Defense Architecture</h1>
+      <pre>+-----------------------------------------------------------------------------------+
+|                           CLOUDFLARE GLOBAL EDGE (WAF)                            |
+|  1. TLS / SSL Inspection & JA3/JA4 Fingerprinting                                 |
+|  2. Super Bot Fight Mode (Managed Challenges for Definite / Likely Bots)         |
+|  3. Cloudflare Turnstile Token Validation (Invisible CAPTCHA)                    |
+|  4. Edge Rate Limiting Rules (/api/v1/tenders*, /api/v1/auth/*)                  |
+|  5. Datacenter ASN & Proxy IP Filtering (AWS, DigitalOcean, Hetzner)              |
+|  6. Cloudflare Authenticated Origin Pull (Mutual TLS Client Certificate)         |
++-----------------------------------------------------------------------------------+
+                                          |
+                                          | Clean, Authenticated HTTPS Traffic Only
+                                          v
++-----------------------------------------------------------------------------------+
+|                        RENDER ORIGIN SERVER (Node.js API)                         |
+|  1. Origin Hardening: Reject requests missing valid Cloudflare headers            |
+|  2. botShield.middleware.js: Redis IP blacklisting, honeypot traps                |
+|  3. Auth & Session Guards: JWT token validation, verified user roles              |
++-----------------------------------------------------------------------------------+</pre>
+
+      <h1>3. Six-Phase Implementation Roadmap</h1>
+      
+      <h2>Phase 1: Cloudflare Proxy & Origin Hardening</h2>
+      <ul>
+        <li><strong>DNS Orange-Cloud Proxying</strong>: Route <code>tenderhub.in</code> and <code>api.tenderhub.in</code> through Cloudflare proxy.</li>
+        <li><strong>SSL/TLS Full (Strict)</strong>: Enforce Minimum TLS Version 1.2 with HTTP/3 QUIC.</li>
+        <li><strong>Origin Pull Hardening</strong>: In <code>botShield.middleware.js</code>, verify incoming requests in production contain <code>cf-ray</code> and <code>cf-connecting-ip</code> headers to prevent direct IP bypass.</li>
+      </ul>
+
+      <h2>Phase 2: Super Bot Fight Mode Configuration</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Traffic Classification</th>
+            <th>Cloudflare Edge Action</th>
+            <th>Target Scenarios</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Definitely Automated</td>
+            <td>Block</td>
+            <td>Python <code>requests</code>, Scrapy, curl, unauthorized exploit bots</td>
+          </tr>
+          <tr>
+            <td>Likely Automated</td>
+            <td>Managed Challenge</td>
+            <td>Headless Playwright / Puppeteer scrapers lacking full browser DOM</td>
+          </tr>
+          <tr>
+            <td>Verified Search Bots</td>
+            <td>Allow</td>
+            <td>Googlebot, Bingbot for public SEO tender indexing</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>Phase 3: Edge WAF Custom Rules & Scraper Defense</h2>
+      <ul>
+        <li><strong>Tender Catalog Harvesting Rule</strong>: Limit <code>GET /api/v1/tenders*</code> to 25 requests per 10 seconds per IP address; challenge excess requests with Turnstile for 5 minutes.</li>
+        <li><strong>Auth Brute-Force Rule</strong>: Limit <code>POST /api/v1/auth/login</code> and <code>register</code> to 5 requests per 60 seconds per IP; block violators for 1 hour.</li>
+        <li><strong>Datacenter ASN Filtering</strong>: Challenge requests originating from hosting providers (AWS, DigitalOcean, Hetzner, OVH) attempting to query user-facing APIs without a valid session.</li>
+      </ul>
+
+      <div class="page-break"></div>
+
+      <h2>Phase 4: Cloudflare Turnstile Integration (Invisible Bot Challenge)</h2>
+      <p>
+        Cloudflare Turnstile replaces traditional intrusive image CAPTCHAs with an invisible cryptographic challenge verifying genuine human browsers.
+      </p>
+      <ul>
+        <li><strong>Frontend Widget</strong>: Embed invisible Turnstile container on <code>/login</code>, <code>/register</code>, and tender document download modals.</li>
+        <li><strong>Backend Middleware</strong>: Express middleware validates <code>cf-turnstile-response</code> token against Cloudflare Siteverify API (<code>https://challenges.cloudflare.com/turnstile/v0/siteverify</code>).</li>
+      </ul>
+
+      <h2>Phase 5: Cloudflare R2 Document Hotlinking & Asset Security</h2>
+      <ul>
+        <li><strong>Ephemeral Presigned URLs</strong>: All tender document download links are generated with strict 15-minute expiration (<code>expiresIn: 900</code>).</li>
+        <li><strong>WAF Referer Header Enforcement</strong>: Block direct hotlinks to document assets unless the HTTP Referer originates from <code>tenderhub.in</code>.</li>
+      </ul>
+
+      <h2>Phase 6: Operational Monitoring & Analytics</h2>
+      <p>
+        Continuously monitor blocked threat metrics in Cloudflare Dashboard (Security &rarr; WAF &rarr; Events) to fine-tune rate-limiting thresholds without false positives for legitimate contractors.
+      </p>
+
+      <h1>4. Environment Variables Checklist</h1>
+      <pre># Backend (backend/.env)
+TURNSTILE_SECRET_KEY=0x4AAAAAA...your_turnstile_secret_key...
+CLOUDFLARE_ORIGIN_VERIFY_SECRET=cf_origin_sec_8923419028341
+
+# Frontend (frontend/.env.production)
+VITE_TURNSTILE_SITE_KEY=0x4AAAAAA...your_turnstile_site_key...</pre>
+    `;
+
+    const cfDocHtml = wrapInLatexHtml(
+      'TenderHub Cloudflare Anti-Bot & Scraping Defense Plan',
+      'Edge Security Architecture, WAF Rulesets, Bot Fight Mode, and Turnstile Integration',
+      'Comprehensive security plan and implementation runbook for deploying Cloudflare Edge Bot Management, WAF custom rulesets, Cloudflare Turnstile invisible CAPTCHAs, and Cloudflare R2 asset hotlinking protection.',
+      cfHtml
+    );
+
+    const cfPdfPath = path.join(docsDir, 'TenderHub_Cloudflare_Anti_Bot_Security_Plan.pdf');
+    await renderHtmlToPdf(browser, cfDocHtml, cfPdfPath);
+
     console.log('✨ All LaTeX-styled PDFs generated successfully in docs/!');
   } finally {
     await browser.close();
